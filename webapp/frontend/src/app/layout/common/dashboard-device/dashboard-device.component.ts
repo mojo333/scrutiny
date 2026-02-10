@@ -75,7 +75,7 @@ export class DashboardDeviceComponent implements OnInit {
 
     openArchiveDialog(): void {
         if(this.deviceSummary.device.archived){
-            this._archiveService.unarchiveDevice(this.deviceSummary.device.wwn).subscribe((result) => {
+            this._archiveService.unarchiveDevice(this.deviceSummary.device.wwn).pipe(takeUntil(this._unsubscribeAll)).subscribe((result) => {
                 if(result) {
                     this.deviceUnarchived.emit(this.deviceSummary.device.wwn)
                 }
@@ -88,7 +88,7 @@ export class DashboardDeviceComponent implements OnInit {
                 title: DeviceTitlePipe.deviceTitleWithFallback(this.deviceSummary.device, this.config.dashboard_display)
             }
         });
-        dialogRef.afterClosed().subscribe(result => {
+        dialogRef.afterClosed().pipe(takeUntil(this._unsubscribeAll)).subscribe(result => {
             if(result) {
                 this.deviceArchived.emit(this.deviceSummary.device.wwn);
             }
@@ -104,8 +104,7 @@ export class DashboardDeviceComponent implements OnInit {
             }
         });
 
-        dialogRef.afterClosed().subscribe(result => {
-            console.log('The dialog was closed', result);
+        dialogRef.afterClosed().pipe(takeUntil(this._unsubscribeAll)).subscribe(result => {
             if (result.success) {
                 this.deviceDeleted.emit(this.deviceSummary.device.wwn)
             }

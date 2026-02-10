@@ -442,8 +442,7 @@ export class DetailComponent implements OnInit, AfterViewInit, OnDestroy {
     openDialog(): void {
         const dialogRef = this.dialog.open(DetailSettingsComponent);
 
-        dialogRef.afterClosed().subscribe(result => {
-            console.log(`Dialog result: ${result}`);
+        dialogRef.afterClosed().subscribe(() => {
         });
     }
 

@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      -  master
+      -  main
   pull_request: 
 
 permissions:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
       - name: Test Frontend
         run: |
           make binary-frontend-test-coverage
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
       - name: Download coverage reports
         uses: actions/download-artifact@v4
         with:
@@ -90,7 +90,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          args: --issues-exit-code=0
+          args: --issues-exit-code=1
 
   build:
     name: Build ${{ matrix.cfg.goos }}/${{ matrix.cfg.goarch }}
@@ -115,8 +115,8 @@ jobs:
           - { on: windows-latest, goos: windows,    goarch: arm64 }
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - uses: actions/setup-go@v3
+        uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: '^1.25'
       - name: Build Binaries

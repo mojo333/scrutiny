@@ -22,7 +22,8 @@ func UploadDeviceMetrics(c *gin.Context) {
 
 	//appConfig := c.MustGet("CONFIG").(config.Interface)
 
-	if c.Param("wwn") == "" {
+	if err := ValidateWWN(c.Param("wwn")); err != nil {
+		logger.Errorln("Invalid WWN format", err)
 		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}

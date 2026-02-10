@@ -80,12 +80,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy
                 const newConfig = JSON.stringify(config)
 
                 if(oldConfig !== newConfig){
-                    console.log(`Configuration updated: ${newConfig} vs ${oldConfig}`)
                     // Store the config
                     this.config = config;
 
                     if(oldConfig){
-                        console.log('reloading component...')
                         this.refreshComponent()
                     }
                 }
@@ -106,7 +104,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy
                     hostDeviceList.push(wwn)
                     this.hostGroups[hostid] = hostDeviceList
                 }
-                console.log(this.hostGroups)
 
                 // Prepare the chart data
                 this._prepareChartData();
@@ -142,8 +139,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy
 
     private _deviceDataTemperatureSeries(): any[] {
         const deviceTemperatureSeries = []
-
-        console.log('DEVICE DATA SUMMARY', this.summaryData)
 
         for (const wwn in this.summaryData) {
             const deviceSummary = this.summaryData[wwn]
@@ -254,8 +249,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy
     openDialog(): void {
         const dialogRef = this.dialog.open(DashboardSettingsComponent, {width: '600px',});
 
-        dialogRef.afterClosed().subscribe(result => {
-            console.log(`Dialog result: ${result}`);
+        dialogRef.afterClosed().pipe(takeUntil(this._unsubscribeAll)).subscribe(() => {
         });
     }
 
@@ -283,6 +277,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy
         this.tempDurationKey = durationKey
 
         this._dashboardService.getSummaryTempData(durationKey)
+            .pipe(takeUntil(this._unsubscribeAll))
             .subscribe((tempHistoryData) => {
 
                 // given a list of device temp history, override the data in the "summary" object.

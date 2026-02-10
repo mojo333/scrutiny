@@ -11,6 +11,12 @@ func UnarchiveDevice(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 	deviceRepo := c.MustGet("DEVICE_REPOSITORY").(database.DeviceRepo)
 
+	if err := ValidateWWN(c.Param("wwn")); err != nil {
+		logger.Errorln("Invalid WWN format", err)
+		c.JSON(http.StatusBadRequest, gin.H{"success": false})
+		return
+	}
+
 	err := deviceRepo.UpdateDeviceArchived(c, c.Param("wwn"), false)
 	if err != nil {
 		logger.Errorln("An error occurred while unarchiving device", err)
