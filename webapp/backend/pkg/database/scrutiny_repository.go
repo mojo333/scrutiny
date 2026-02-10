@@ -411,17 +411,27 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 			//get summary data from Influxdb.
 			//result.Record().Values()
 			if deviceWWN, ok := result.Record().Values()["device_wwn"]; ok {
-
-				//ensure summaries is intialized for this wwn
-				if _, exists := summaries[deviceWWN.(string)]; !exists {
-					summaries[deviceWWN.(string)] = &models.DeviceSummary{}
+				wwn, wwnOk := deviceWWN.(string)
+				if !wwnOk {
+					continue
 				}
 
-				summaries[deviceWWN.(string)].SmartResults = &models.SmartSummary{
-					Temp:          result.Record().Values()["temp"].(int64),
-					PowerOnHours:  result.Record().Values()["power_on_hours"].(int64),
-					CollectorDate: result.Record().Values()["_time"].(time.Time),
+				//ensure summaries is initialized for this wwn
+				if _, exists := summaries[wwn]; !exists {
+					summaries[wwn] = &models.DeviceSummary{}
 				}
+
+				smartSummary := &models.SmartSummary{}
+				if temp, tempOk := result.Record().Values()["temp"].(int64); tempOk {
+					smartSummary.Temp = temp
+				}
+				if poh, pohOk := result.Record().Values()["power_on_hours"].(int64); pohOk {
+					smartSummary.PowerOnHours = poh
+				}
+				if t, tOk := result.Record().Values()["_time"].(time.Time); tOk {
+					smartSummary.CollectorDate = t
+				}
+				summaries[wwn].SmartResults = smartSummary
 			}
 		}
 		if result.Err() != nil {
@@ -436,7 +446,9 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 		sr.logger.Errorf("Error retrieving temperature history: %v", err)
 	}
 	for wwn, tempHistory := range deviceTempHistory {
-		summaries[wwn].TempHistory = tempHistory
+		if summary, exists := summaries[wwn]; exists {
+			summary.TempHistory = tempHistory
+		}
 	}
 
 	return summaries, nil

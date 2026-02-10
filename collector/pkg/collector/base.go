@@ -3,6 +3,7 @@ package collector
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -26,6 +27,10 @@ func (c *BaseCollector) postJson(url string, body interface{}, target interface{
 		return err
 	}
 	defer r.Body.Close()
+
+	if r.StatusCode >= 400 {
+		return fmt.Errorf("API request to %s failed with HTTP %d", url, r.StatusCode)
+	}
 
 	return json.NewDecoder(r.Body).Decode(target)
 }

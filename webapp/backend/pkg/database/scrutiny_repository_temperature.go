@@ -74,21 +74,27 @@ func (sr *scrutinyRepository) GetSmartTemperatureHistory(ctx context.Context, du
 		for result.Next() {
 
 			if deviceWWN, ok := result.Record().Values()["device_wwn"]; ok {
-
-				//check if deviceWWN has been seen and initialized already
-				if _, ok := deviceTempHistory[deviceWWN.(string)]; !ok {
-					deviceTempHistory[deviceWWN.(string)] = []measurements.SmartTemperature{}
+				wwn, wwnOk := deviceWWN.(string)
+				if !wwnOk {
+					continue
 				}
 
-				currentTempHistory := deviceTempHistory[deviceWWN.(string)]
+				//check if deviceWWN has been seen and initialized already
+				if _, ok := deviceTempHistory[wwn]; !ok {
+					deviceTempHistory[wwn] = []measurements.SmartTemperature{}
+				}
+
+				currentTempHistory := deviceTempHistory[wwn]
 				smartTemp := measurements.SmartTemperature{}
 
 				for key, val := range result.Record().Values() {
 					smartTemp.Inflate(key, val)
 				}
-				smartTemp.Date = result.Record().Values()["_time"].(time.Time)
+				if t, tOk := result.Record().Values()["_time"].(time.Time); tOk {
+					smartTemp.Date = t
+				}
 				currentTempHistory = append(currentTempHistory, smartTemp)
-				deviceTempHistory[deviceWWN.(string)] = currentTempHistory
+				deviceTempHistory[wwn] = currentTempHistory
 			}
 		}
 		if result.Err() != nil {

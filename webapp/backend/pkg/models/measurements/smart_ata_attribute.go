@@ -61,32 +61,54 @@ func (sa *SmartAtaAttribute) Inflate(key string, val interface{}) {
 
 	switch keyParts[2] {
 	case "attribute_id":
-		attrId, err := strconv.Atoi(val.(string))
-		if err == nil {
-			sa.AttributeId = attrId
+		if v, ok := val.(string); ok {
+			attrId, err := strconv.Atoi(v)
+			if err == nil {
+				sa.AttributeId = attrId
+			}
 		}
 	case "value":
-		sa.Value = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Value = v
+		}
 	case "worst":
-		sa.Worst = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Worst = v
+		}
 	case "thresh":
-		sa.Threshold = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Threshold = v
+		}
 	case "raw_value":
-		sa.RawValue = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.RawValue = v
+		}
 	case "raw_string":
-		sa.RawString = val.(string)
+		if v, ok := val.(string); ok {
+			sa.RawString = v
+		}
 	case "when_failed":
-		sa.WhenFailed = val.(string)
+		if v, ok := val.(string); ok {
+			sa.WhenFailed = v
+		}
 
 	//generated
 	case "transformed_value":
-		sa.TransformedValue = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.TransformedValue = v
+		}
 	case "status":
-		sa.Status = pkg.AttributeStatus(val.(int64))
+		if v, ok := val.(int64); ok {
+			sa.Status = pkg.AttributeStatus(v)
+		}
 	case "status_reason":
-		sa.StatusReason = val.(string)
+		if v, ok := val.(string); ok {
+			sa.StatusReason = v
+		}
 	case "failure_rate":
-		sa.FailureRate = val.(float64)
+		if v, ok := val.(float64); ok {
+			sa.FailureRate = v
+		}
 
 	}
 }

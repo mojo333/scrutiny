@@ -49,21 +49,35 @@ func (sa *SmartNvmeAttribute) Inflate(key string, val interface{}) {
 
 	switch keyParts[2] {
 	case "attribute_id":
-		sa.AttributeId = val.(string)
+		if v, ok := val.(string); ok {
+			sa.AttributeId = v
+		}
 	case "value":
-		sa.Value = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Value = v
+		}
 	case "thresh":
-		sa.Threshold = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Threshold = v
+		}
 
 	//generated
 	case "transformed_value":
-		sa.TransformedValue = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.TransformedValue = v
+		}
 	case "status":
-		sa.Status = pkg.AttributeStatus(val.(int64))
+		if v, ok := val.(int64); ok {
+			sa.Status = pkg.AttributeStatus(v)
+		}
 	case "status_reason":
-		sa.StatusReason = val.(string)
+		if v, ok := val.(string); ok {
+			sa.StatusReason = v
+		}
 	case "failure_rate":
-		sa.FailureRate = val.(float64)
+		if v, ok := val.(float64); ok {
+			sa.FailureRate = v
+		}
 	}
 }
 

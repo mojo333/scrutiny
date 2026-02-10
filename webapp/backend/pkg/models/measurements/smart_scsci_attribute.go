@@ -49,21 +49,35 @@ func (sa *SmartScsiAttribute) Inflate(key string, val interface{}) {
 
 	switch keyParts[2] {
 	case "attribute_id":
-		sa.AttributeId = val.(string)
+		if v, ok := val.(string); ok {
+			sa.AttributeId = v
+		}
 	case "value":
-		sa.Value = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Value = v
+		}
 	case "thresh":
-		sa.Threshold = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.Threshold = v
+		}
 
 	//generated
 	case "transformed_value":
-		sa.TransformedValue = val.(int64)
+		if v, ok := val.(int64); ok {
+			sa.TransformedValue = v
+		}
 	case "status":
-		sa.Status = pkg.AttributeStatus(val.(int64))
+		if v, ok := val.(int64); ok {
+			sa.Status = pkg.AttributeStatus(v)
+		}
 	case "status_reason":
-		sa.StatusReason = val.(string)
+		if v, ok := val.(string); ok {
+			sa.StatusReason = v
+		}
 	case "failure_rate":
-		sa.FailureRate = val.(float64)
+		if v, ok := val.(float64); ok {
+			sa.FailureRate = v
+		}
 	}
 }
 
@@ -74,7 +88,7 @@ func (sa *SmartScsiAttribute) PopulateAttributeStatus() *SmartScsiAttribute {
 
 	//-1 is a special number meaning no threshold.
 	if sa.Threshold != -1 {
-		if smartMetadata, ok := thresholds.NmveMetadata[sa.AttributeId]; ok {
+		if smartMetadata, ok := thresholds.ScsiMetadata[sa.AttributeId]; ok {
 			//check what the ideal is. Ideal tells us if we our recorded value needs to be above, or below the threshold
 			if (smartMetadata.Ideal == "low" && sa.Value > sa.Threshold) ||
 				(smartMetadata.Ideal == "high" && sa.Value < sa.Threshold) {

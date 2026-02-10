@@ -53,11 +53,24 @@ func (sm *Smart) Flatten() (tags map[string]string, fields map[string]interface{
 func NewSmartFromInfluxDB(attrs map[string]interface{}) (*Smart, error) {
 	//go though the massive map returned from influxdb. If a key is associated with the Smart struct, assign it. If it starts with "attr.*" group it by attributeId, and pass to attribute inflate.
 
+	smDate, dateOk := attrs["_time"].(time.Time)
+	if !dateOk {
+		return nil, fmt.Errorf("missing or invalid '_time' field in InfluxDB result")
+	}
+	smWWN, wwnOk := attrs["device_wwn"].(string)
+	if !wwnOk {
+		return nil, fmt.Errorf("missing or invalid 'device_wwn' field in InfluxDB result")
+	}
+	smProtocol, protoOk := attrs["device_protocol"].(string)
+	if !protoOk {
+		return nil, fmt.Errorf("missing or invalid 'device_protocol' field in InfluxDB result")
+	}
+
 	sm := Smart{
 		//required fields
-		Date:           attrs["_time"].(time.Time),
-		DeviceWWN:      attrs["device_wwn"].(string),
-		DeviceProtocol: attrs["device_protocol"].(string),
+		Date:           smDate,
+		DeviceWWN:      smWWN,
+		DeviceProtocol: smProtocol,
 
 		Attributes: map[string]SmartAttribute{},
 	}
