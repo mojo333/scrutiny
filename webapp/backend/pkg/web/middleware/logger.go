@@ -115,7 +115,7 @@ func (w responseBodyLogWriter) Write(b []byte) (int, error) {
 
 func readBody(reader io.Reader) string {
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(reader)
+	_, _ = buf.ReadFrom(reader)
 
 	s := buf.String()
 	return s

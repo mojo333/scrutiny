@@ -1,12 +1,13 @@
 package config
 
 import (
-	"github.com/analogj/go-util/utils"
-	"github.com/analogj/scrutiny/webapp/backend/pkg/errors"
-	"github.com/spf13/viper"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/analogj/go-util/utils"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/errors"
+	"github.com/spf13/viper"
 )
 
 const DB_USER_SETTINGS_SUBKEY = "user"

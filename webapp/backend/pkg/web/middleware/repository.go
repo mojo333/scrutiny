@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database"
 	"github.com/gin-gonic/gin"

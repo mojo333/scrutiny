@@ -12,9 +12,9 @@ import (
 	"github.com/influxdata/influxdb-client-go/v2/api"
 )
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SMART
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (sr *scrutinyRepository) SaveSmartAttributes(ctx context.Context, wwn string, collectorSmartData collector.SmartInfo) (measurements.Smart, error) {
 	deviceSmartData := measurements.Smart{}
 	err := deviceSmartData.FromCollectorSmartInfo(wwn, collectorSmartData)
@@ -49,11 +49,6 @@ func (sr *scrutinyRepository) GetSmartAttributeHistory(ctx context.Context, wwn 
 	if err == nil {
 		// Use Next() to iterate over query result lines
 		for result.Next() {
-			// Observe when there is new grouping key producing new table
-			if result.TableChanged() {
-				//fmt.Printf("table: %s\n", result.TableMetadata().String())
-			}
-
 			smartData, err := measurements.NewSmartFromInfluxDB(result.Record().Values())
 			if err != nil {
 				return nil, err
@@ -195,7 +190,7 @@ func (sr *scrutinyRepository) generateSmartAttributesSubquery(wwn string, durati
 	}
 
 	partialQueryStr = append(partialQueryStr, `|> aggregateWindow(every: 1d, fn: last, createEmpty: false)`)
-	
+
 	if selectEntries > 0 {
 		partialQueryStr = append(partialQueryStr, fmt.Sprintf(`|> tail(n: %d, offset: %d)`, selectEntries, selectEntriesOffset))
 	}

@@ -60,6 +60,7 @@ func helperReadSmartDataFileFixTimestamp(t *testing.T, smartDataFilepath string)
 	require.NoError(t, err)
 	smartData.LocalTime.TimeT = time.Now().Unix()
 	updatedSmartDataBytes, err := json.Marshal(smartData)
+	require.NoError(t, err)
 
 	return bytes.NewReader(updatedSmartDataBytes)
 }

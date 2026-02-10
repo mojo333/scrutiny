@@ -1,12 +1,13 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
-	"net/http"
 )
 
 // register devices that are detected by various collectors.

@@ -1,8 +1,9 @@
 package m20201107210306
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Deprecated: m20201107210306.Smart is deprecated, only used by db migrations

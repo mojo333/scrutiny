@@ -158,7 +158,7 @@ func (c *configuration) GetDeviceOverrides() []models.ScanOverride {
 
 	if c.deviceOverrides == nil {
 		overrides := []models.ScanOverride{}
-		c.UnmarshalKey("devices", &overrides, func(c *mapstructure.DecoderConfig) { c.WeaklyTypedInput = true })
+		_ = c.UnmarshalKey("devices", &overrides, func(c *mapstructure.DecoderConfig) { c.WeaklyTypedInput = true })
 		c.deviceOverrides = overrides
 	}
 

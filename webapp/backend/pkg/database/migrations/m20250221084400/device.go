@@ -1,8 +1,9 @@
 package m20250221084400
 
 import (
-	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"time"
+
+	"github.com/analogj/scrutiny/webapp/backend/pkg"
 )
 
 type Device struct {

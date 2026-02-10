@@ -1,8 +1,9 @@
 package m20220509170100
 
 import (
-	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"time"
+
+	"github.com/analogj/scrutiny/webapp/backend/pkg"
 )
 
 // Deprecated: m20220509170100.Device is deprecated, only used by db migrations

@@ -1,9 +1,10 @@
 package errors_test
 
 import (
+	"testing"
+
 	"github.com/analogj/scrutiny/collector/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 //func TestCheckErr_WithoutError(t *testing.T) {

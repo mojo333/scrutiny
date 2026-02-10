@@ -1,9 +1,10 @@
 package models
 
 import (
+	"time"
+
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
-	"time"
 )
 
 type DeviceWrapper struct {

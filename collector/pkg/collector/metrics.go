@@ -140,7 +140,7 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 			// smartctl command exited with an error, we should still push the data to the API server
 			mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
 			mc.LogSmartctlExitCode(exitError.ExitCode())
-			mc.Publish(deviceWWN, resultBytes)
+			_ = mc.Publish(deviceWWN, resultBytes)
 		} else {
 			mc.logger.Errorf("error while attempting to execute smartctl: %s\n", deviceName)
 			mc.logger.Errorf("ERROR MESSAGE: %v", err)
@@ -149,7 +149,7 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 		return
 	} else {
 		//successful run, pass the results directly to webapp backend for parsing and processing.
-		mc.Publish(deviceWWN, resultBytes)
+		_ = mc.Publish(deviceWWN, resultBytes)
 	}
 }
 

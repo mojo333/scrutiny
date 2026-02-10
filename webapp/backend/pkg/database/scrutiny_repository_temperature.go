@@ -24,8 +24,8 @@ func (sr *scrutinyRepository) SaveSmartTemperature(ctx context.Context, wwn stri
 			}
 
 			intervalSec := collectorSmartData.AtaSctTemperatureHistory.LoggingIntervalMinutes * 60
-			datapointTime := collectorSmartData.LocalTime.TimeT - int64(ndx) * intervalSec
-			alignedDatapointTime := datapointTime - datapointTime % intervalSec
+			datapointTime := collectorSmartData.LocalTime.TimeT - int64(ndx)*intervalSec
+			alignedDatapointTime := datapointTime - datapointTime%intervalSec
 			smartTemp := measurements.SmartTemperature{
 				Date: time.Unix(alignedDatapointTime, 0),
 				Temp: temp,
@@ -43,7 +43,6 @@ func (sr *scrutinyRepository) SaveSmartTemperature(ctx context.Context, wwn stri
 			}
 		}
 	}
-
 
 	// Even if ata_sct_temperature_history is present, also add current temperature. See #824
 	smartTemp := measurements.SmartTemperature{

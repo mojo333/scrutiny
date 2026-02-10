@@ -25,8 +25,8 @@ func (d *Detect) Start() ([]models.Device, error) {
 
 	//inflate device info for detected devices.
 	for ndx := range detectedDevices {
-		d.SmartCtlInfo(&detectedDevices[ndx])   //ignore errors.
-		populateUdevInfo(&detectedDevices[ndx]) //ignore errors.
+		_ = d.SmartCtlInfo(&detectedDevices[ndx])   //ignore errors.
+		_ = populateUdevInfo(&detectedDevices[ndx]) //ignore errors.
 	}
 
 	return detectedDevices, nil
@@ -75,15 +75,12 @@ func populateUdevInfo(detectedDevice *models.Device) error {
 		return err
 	}
 
-	deviceMountPaths := []string{}
 	udevInfo := make(map[string]string)
 	for _, udevLine := range strings.Split(string(udevBytes), "\n") {
 		if strings.HasPrefix(udevLine, "E:") {
 			if s := strings.SplitN(udevLine[2:], "=", 2); len(s) == 2 {
 				udevInfo[s[0]] = s[1]
 			}
-		} else if strings.HasPrefix(udevLine, "S:") {
-			deviceMountPaths = append(deviceMountPaths, udevLine[2:])
 		}
 	}
 

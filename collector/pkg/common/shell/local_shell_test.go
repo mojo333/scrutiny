@@ -1,10 +1,11 @@
 package shell
 
 import (
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
+
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLocalShellCommand(t *testing.T) {

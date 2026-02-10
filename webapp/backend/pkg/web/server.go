@@ -2,6 +2,10 @@ package web
 
 import (
 	"fmt"
+	"net/http"
+	"path/filepath"
+	"strings"
+
 	"github.com/analogj/go-util/utils"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/errors"
@@ -9,9 +13,6 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/web/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"net/http"
-	"path/filepath"
-	"strings"
 )
 
 type AppEngine struct {

@@ -1,11 +1,12 @@
 package config_test
 
 import (
+	"path"
+	"testing"
+
 	"github.com/analogj/scrutiny/collector/pkg/config"
 	"github.com/analogj/scrutiny/collector/pkg/models"
 	"github.com/stretchr/testify/require"
-	"path"
-	"testing"
 )
 
 func TestConfiguration_InvalidConfigPath(t *testing.T) {

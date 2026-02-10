@@ -1,10 +1,11 @@
 package detect
 
 import (
+	"strings"
+
 	"github.com/analogj/scrutiny/collector/pkg/common/shell"
 	"github.com/analogj/scrutiny/collector/pkg/models"
 	"github.com/jaypipes/ghw"
-	"strings"
 )
 
 func DevicePrefix() string {
@@ -27,7 +28,7 @@ func (d *Detect) Start() ([]models.Device, error) {
 	return detectedDevices, nil
 }
 
-//WWN values NVMe and SCSI
+// WWN values NVMe and SCSI
 func (d *Detect) wwnFallback(detectedDevice *models.Device) {
 	block, err := ghw.Block()
 	if err == nil {
