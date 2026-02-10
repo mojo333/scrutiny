@@ -68,3 +68,4 @@ coverage.txt
 /influxdb
 .angular
 web.log
+HANDOFF.md
