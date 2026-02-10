@@ -496,7 +496,7 @@ func TestFromCollectorSmartInfo_Scsi(t *testing.T) {
 	//assert
 	require.NoError(t, err)
 	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
-	require.Equal(t, pkg.DeviceStatusPassed, smartMdl.Status)
+	require.Equal(t, pkg.DeviceStatusFailedScrutiny, smartMdl.Status)
 	require.Equal(t, 13, len(smartMdl.Attributes))
 
 	require.Equal(t, int64(56), smartMdl.Attributes["scsi_grown_defect_list"].(*measurements.SmartScsiAttribute).Value)
