@@ -16,14 +16,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Setup pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+      - name: Install dependencies
+        working-directory: webapp/frontend-react
+        run: pnpm install --frozen-lockfile
       - name: Test Frontend
-        run: |
-          make binary-frontend-test-coverage
+        working-directory: webapp/frontend-react
+        run: pnpm run test:coverage
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
-          path: ${{ github.workspace }}/webapp/frontend/coverage/lcov.info
+          name: coverage-frontend
+          path: ${{ github.workspace }}/webapp/frontend-react/coverage/lcov.info
           retention-days: 1
   test-backend:
     name: Test Backend
@@ -54,7 +63,7 @@ jobs:
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-backend
           path: ${{ github.workspace }}/coverage.txt
           retention-days: 1
   test-coverage:
@@ -66,10 +75,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Download coverage reports
+      - name: Download backend coverage
         uses: actions/download-artifact@v4
         with:
-          name: coverage
+          name: coverage-backend
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-frontend
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
         with:
@@ -129,3 +142,4 @@ jobs:
           path: |
             scrutiny-web-*
             scrutiny-collector-metrics-*
+            scrutiny-collector-zfs-*

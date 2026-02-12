@@ -1,0 +1,80 @@
+services:
+  # InfluxDB - Time series database
+  influxdb:
+    container_name: scrutiny-influxdb
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./influxdb/dev:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=password123
+      - DOCKER_INFLUXDB_INIT_ORG=scrutiny
+      - DOCKER_INFLUXDB_INIT_BUCKET=scrutiny
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=scrutiny-default-admin-token
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - scrutiny-net
+
+  # Scrutiny Backend
+  scrutiny-backend:
+    container_name: scrutiny-backend
+    image: ghcr.io/analogj/scrutiny:master-web
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config/dev:/opt/scrutiny/config
+    environment:
+      - SCRUTINY_WEB_LISTEN_PORT=8080
+      - SCRUTINY_WEB_LISTEN_HOST=0.0.0.0
+      - SCRUTINY_WEB_INFLUXDB_HOST=influxdb
+      - SCRUTINY_WEB_INFLUXDB_PORT=8086
+      - SCRUTINY_WEB_INFLUXDB_TOKEN=scrutiny-default-admin-token
+      - SCRUTINY_WEB_INFLUXDB_ORG=scrutiny
+      - SCRUTINY_WEB_INFLUXDB_BUCKET=scrutiny
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - scrutiny-net
+
+  # React Frontend (Dev mode with hot reloading)
+  scrutiny-frontend-react:
+    container_name: scrutiny-frontend-react
+    build:
+      context: ./webapp/frontend-react
+      dockerfile: Dockerfile.dev
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./webapp/frontend-react/src:/app/src
+      - ./webapp/frontend-react/public:/app/public
+      - ./webapp/frontend-react/index.html:/app/index.html
+      - ./webapp/frontend-react/vite.config.ts:/app/vite.config.ts
+      - ./webapp/frontend-react/tsconfig.json:/app/tsconfig.json
+      - ./webapp/frontend-react/tsconfig.app.json:/app/tsconfig.app.json
+    depends_on:
+      scrutiny-backend:
+        condition: service_healthy
+    networks:
+      - scrutiny-net
+    environment:
+      - NODE_ENV=development
+      - VITE_DEMO_MODE=true
+    command: pnpm dev --host 0.0.0.0
+
+networks:
+  scrutiny-net:
+    driver: bridge

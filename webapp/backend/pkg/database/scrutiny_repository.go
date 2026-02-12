@@ -351,49 +351,19 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 		summaries[device.WWN] = &models.DeviceSummary{Device: device}
 	}
 
-	// Get parser flux query result
-	//appConfig.GetString("web.influxdb.bucket")
+	// Optimized query: only query the daily bucket with recent data
+	// Dashboard only needs latest values, not historical data
 	queryStr := fmt.Sprintf(`
-  	import "influxdata/influxdb/schema"
-  	bucketBaseName = "%s"
+		import "influxdata/influxdb/schema"
 
-	dailyData = from(bucket: bucketBaseName)
-	|> range(start: -10y, stop: now())
-	|> filter(fn: (r) => r["_measurement"] == "smart" )
-	|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
-	|> last()
-	|> schema.fieldsAsCols()
-	|> group(columns: ["device_wwn"])
-	
-	weeklyData = from(bucket: bucketBaseName + "_weekly")
-	|> range(start: -10y, stop: now())
-	|> filter(fn: (r) => r["_measurement"] == "smart" )
-	|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
-	|> last()
-	|> schema.fieldsAsCols()
-	|> group(columns: ["device_wwn"])
-	
-	monthlyData = from(bucket: bucketBaseName + "_monthly")
-	|> range(start: -10y, stop: now())
-	|> filter(fn: (r) => r["_measurement"] == "smart" )
-	|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
-	|> last()
-	|> schema.fieldsAsCols()
-	|> group(columns: ["device_wwn"])
-	
-	yearlyData = from(bucket: bucketBaseName + "_yearly")
-	|> range(start: -10y, stop: now())
-	|> filter(fn: (r) => r["_measurement"] == "smart" )
-	|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
-	|> last()
-	|> schema.fieldsAsCols()
-	|> group(columns: ["device_wwn"])
-	
-	union(tables: [dailyData, weeklyData, monthlyData, yearlyData])
-	|> sort(columns: ["_time"], desc: false)
-	|> group(columns: ["device_wwn"])
-	|> last(column: "device_wwn")
-	|> yield(name: "last")
+		from(bucket: "%s")
+		|> range(start: -7d, stop: now())
+		|> filter(fn: (r) => r["_measurement"] == "smart")
+		|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
+		|> last()
+		|> schema.fieldsAsCols()
+		|> group(columns: ["device_wwn"])
+		|> yield(name: "last")
 		`,
 		sr.appConfig.GetString("web.influxdb.bucket"),
 	)
