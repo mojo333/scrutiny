@@ -31,7 +31,7 @@ jobs:
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-frontend
           path: ${{ github.workspace }}/webapp/frontend-react/coverage/lcov.info
           retention-days: 1
   test-backend:
@@ -63,7 +63,7 @@ jobs:
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-backend
           path: ${{ github.workspace }}/coverage.txt
           retention-days: 1
   test-coverage:
@@ -75,10 +75,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Download coverage reports
+      - name: Download backend coverage
         uses: actions/download-artifact@v4
         with:
-          name: coverage
+          name: coverage-backend
+      - name: Download frontend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-frontend
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
         with:
