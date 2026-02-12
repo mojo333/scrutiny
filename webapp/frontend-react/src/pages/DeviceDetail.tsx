@@ -111,7 +111,7 @@ export function DeviceDetail() {
                 <DropdownMenuItem onClick={() => config && exportDeviceDetailToCSV(device, smart_results || [], metadata || {}, config)}>
                   Export as CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => config && exportDeviceDetailToPDF(device, smart_results || [], metadata || {}, config)}>
+                <DropdownMenuItem onClick={() => { if (config) exportDeviceDetailToPDF(device, smart_results || [], metadata || {}, config).catch(console.error); }}>
                   Export as PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>

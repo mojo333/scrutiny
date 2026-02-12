@@ -134,7 +134,7 @@ export function Dashboard() {
                 <DropdownMenuItem onClick={() => mergedSummaryData && config && exportToCSV(mergedSummaryData, config)}>
                   Export as CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => mergedSummaryData && config && exportToPDF(mergedSummaryData, config)}>
+                <DropdownMenuItem onClick={() => { if (mergedSummaryData && config) exportToPDF(mergedSummaryData, config).catch(console.error); }}>
                   Export as PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>

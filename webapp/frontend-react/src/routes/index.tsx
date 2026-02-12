@@ -1,10 +1,12 @@
+import { lazy } from 'react';
 import { createRootRoute, createRoute } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { Dashboard } from '@/pages/Dashboard';
-import { DeviceDetail } from '@/pages/DeviceDetail';
-import { ZFSPools } from '@/pages/ZFSPools';
-import { ZFSPoolDetail } from '@/pages/ZFSPoolDetail';
+
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const DeviceDetail = lazy(() => import('@/pages/DeviceDetail').then(m => ({ default: m.DeviceDetail })));
+const ZFSPools = lazy(() => import('@/pages/ZFSPools').then(m => ({ default: m.ZFSPools })));
+const ZFSPoolDetail = lazy(() => import('@/pages/ZFSPoolDetail').then(m => ({ default: m.ZFSPoolDetail })));
 
 // Root route uses MainLayout directly
 export const rootRoute = createRootRoute({

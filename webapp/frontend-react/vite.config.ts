@@ -28,5 +28,16 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-tanstack': ['@tanstack/react-query', '@tanstack/react-router', '@tanstack/react-table'],
+          'vendor-charts': ['apexcharts', 'react-apexcharts'],
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-tooltip', '@radix-ui/react-label', '@radix-ui/react-separator', '@radix-ui/react-slot'],
+        },
+      },
+    },
   },
 }))

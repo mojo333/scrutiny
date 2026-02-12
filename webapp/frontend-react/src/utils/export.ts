@@ -4,7 +4,6 @@ import type { SmartModel } from '@/models/measurements/smart-model';
 import type { AttributeMetadataModel } from '@/models/thresholds/attribute-metadata-model';
 import type { AppConfig } from '@/api/settings';
 import { deviceTitleWithFallback } from './device-title';
-import { jsPDF } from 'jspdf';
 
 export function exportToCSV(
   deviceSummaries: Record<string, DeviceSummaryModel>,
@@ -55,10 +54,11 @@ export function exportToCSV(
   URL.revokeObjectURL(url);
 }
 
-export function exportToPDF(
+export async function exportToPDF(
   deviceSummaries: Record<string, DeviceSummaryModel>,
   config: AppConfig
 ) {
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
 
   // Add title
@@ -183,12 +183,13 @@ export function exportDeviceDetailToCSV(
   URL.revokeObjectURL(url);
 }
 
-export function exportDeviceDetailToPDF(
+export async function exportDeviceDetailToPDF(
   device: DeviceModel,
   smartResults: SmartModel[],
   metadata: Record<number, AttributeMetadataModel>,
   config: AppConfig
 ) {
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   const deviceName = deviceTitleWithFallback(device, config?.dashboard_display || 'name');
   const latestSmart = smartResults?.[0];

@@ -1,6 +1,7 @@
 import { Outlet, Link } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { ThemeToggle } from './ThemeToggle';
+import { LoadingScreen } from './LoadingScreen';
 import { useAppConfig } from '@/hooks/useAppConfig';
 
 export function MainLayout() {
@@ -89,7 +90,9 @@ export function MainLayout() {
 
         {/* Content */}
         <div className="content">
-          <Outlet />
+          <Suspense fallback={<LoadingScreen />}>
+            <Outlet />
+          </Suspense>
         </div>
       </div>
     </>
