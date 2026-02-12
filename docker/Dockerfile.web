@@ -4,11 +4,13 @@
 ########################################################################################################################
 
 ######## Build the frontend
-FROM --platform=${BUILDPLATFORM} node AS frontendbuild
+FROM --platform=${BUILDPLATFORM} node:24-bookworm AS frontendbuild
+RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /go/src/github.com/analogj/scrutiny
-COPY --link . /go/src/github.com/analogj/scrutiny
-
-RUN make binary-frontend
+COPY --link webapp/frontend-react/package.json webapp/frontend-react/pnpm-lock.yaml ./webapp/frontend-react/
+RUN cd webapp/frontend-react && pnpm install --frozen-lockfile
+COPY --link webapp/frontend-react ./webapp/frontend-react
+RUN cd webapp/frontend-react && pnpm run build
 
 ######## Build the backend
 FROM golang:1.25-bookworm as backendbuild
@@ -29,7 +31,7 @@ ENV PATH="/opt/scrutiny/bin:${PATH}"
 RUN apt-get update && apt-get install -y ca-certificates curl tzdata && rm -rf /var/lib/apt/lists/* && update-ca-certificates
 
 COPY --link --from=backendbuild --chmod=755 /go/src/github.com/analogj/scrutiny/scrutiny /opt/scrutiny/bin/
-COPY --link --from=frontendbuild --chmod=644 /go/src/github.com/analogj/scrutiny/dist /opt/scrutiny/web
+COPY --link --from=frontendbuild --chmod=644 /go/src/github.com/analogj/scrutiny/webapp/frontend-react/dist /opt/scrutiny/web
 RUN mkdir -p /opt/scrutiny/web && \
     mkdir -p /opt/scrutiny/config && \
     chmod -R a+rX /opt/scrutiny && \

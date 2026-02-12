@@ -59,7 +59,9 @@ scrutiny.db
 vendor
 /scrutiny
 /scrutiny-collector-metrics-*
+/scrutiny-collector-zfs-*
 /scrutiny-web-*
+build-and-push-dev.sh
 scrutiny-*.db
 scrutiny_test.db
 scrutiny.yaml

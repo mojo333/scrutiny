@@ -50,6 +50,21 @@ func (ae *AppEngine) Setup(logger *logrus.Entry) *gin.Engine {
 
 			api.GET("/settings", handler.GetSettings)   //used to get settings
 			api.POST("/settings", handler.SaveSettings) //used to save settings
+
+			// ZFS pool routes
+			zfs := api.Group("/zfs")
+			{
+				zfs.POST("/pools/register", handler.RegisterZFSPools)
+				zfs.GET("/summary", handler.GetZFSPoolsSummary)
+				zfs.POST("/pool/:guid/metrics", handler.UploadZFSPoolMetrics)
+				zfs.GET("/pool/:guid/details", handler.GetZFSPoolDetails)
+				zfs.POST("/pool/:guid/archive", handler.ArchiveZFSPool)
+				zfs.POST("/pool/:guid/unarchive", handler.UnarchiveZFSPool)
+				zfs.POST("/pool/:guid/mute", handler.MuteZFSPool)
+				zfs.POST("/pool/:guid/unmute", handler.UnmuteZFSPool)
+				zfs.POST("/pool/:guid/label", handler.UpdateZFSPoolLabel)
+				zfs.DELETE("/pool/:guid", handler.DeleteZFSPool)
+			}
 		}
 	}
 

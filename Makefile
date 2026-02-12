@@ -9,6 +9,7 @@ export GOTOOLCHAIN=go1.25.5
 GO_WORKSPACE ?= /go/src/github.com/analogj/scrutiny
 
 COLLECTOR_BINARY_NAME = scrutiny-collector-metrics
+COLLECTOR_ZFS_BINARY_NAME = scrutiny-collector-zfs
 WEB_BINARY_NAME = scrutiny-web
 LD_FLAGS =
 
@@ -27,20 +28,24 @@ STATIC_TAGS := $(STATIC_TAGS) -tags "static netgo"
 endif
 ifdef GOOS
 COLLECTOR_BINARY_NAME := $(COLLECTOR_BINARY_NAME)-$(GOOS)
+COLLECTOR_ZFS_BINARY_NAME := $(COLLECTOR_ZFS_BINARY_NAME)-$(GOOS)
 WEB_BINARY_NAME := $(WEB_BINARY_NAME)-$(GOOS)
 LD_FLAGS := $(LD_FLAGS) -X main.goos=$(GOOS)
 endif
 ifdef GOARCH
 COLLECTOR_BINARY_NAME := $(COLLECTOR_BINARY_NAME)-$(GOARCH)
+COLLECTOR_ZFS_BINARY_NAME := $(COLLECTOR_ZFS_BINARY_NAME)-$(GOARCH)
 WEB_BINARY_NAME := $(WEB_BINARY_NAME)-$(GOARCH)
 LD_FLAGS := $(LD_FLAGS) -X main.goarch=$(GOARCH)
 endif
 ifdef GOARM
 COLLECTOR_BINARY_NAME := $(COLLECTOR_BINARY_NAME)-$(GOARM)
+COLLECTOR_ZFS_BINARY_NAME := $(COLLECTOR_ZFS_BINARY_NAME)-$(GOARM)
 WEB_BINARY_NAME := $(WEB_BINARY_NAME)-$(GOARM)
 endif
 ifeq ($(OS),Windows_NT)
 COLLECTOR_BINARY_NAME := $(COLLECTOR_BINARY_NAME).exe
+COLLECTOR_ZFS_BINARY_NAME := $(COLLECTOR_ZFS_BINARY_NAME).exe
 WEB_BINARY_NAME := $(WEB_BINARY_NAME).exe
 endif
 
@@ -51,8 +56,8 @@ endif
 all: binary-all
 
 .PHONY: binary-all
-binary-all: binary-collector binary-web
-	@echo "built binary-collector and binary-web targets"
+binary-all: binary-collector binary-collector-zfs binary-web
+	@echo "built binary-collector, binary-collector-zfs and binary-web targets"
 
 
 .PHONY: binary-clean
@@ -86,6 +91,16 @@ ifneq ($(OS),Windows_NT)
 	./$(COLLECTOR_BINARY_NAME) || true
 endif
 
+.PHONY: binary-collector-zfs
+binary-collector-zfs: binary-dep
+	go build -ldflags "$(LD_FLAGS)" -o $(COLLECTOR_ZFS_BINARY_NAME) $(STATIC_TAGS) ./collector/cmd/collector-zfs/
+ifneq ($(OS),Windows_NT)
+	chmod +x $(COLLECTOR_ZFS_BINARY_NAME)
+	file $(COLLECTOR_ZFS_BINARY_NAME) || true
+	ldd $(COLLECTOR_ZFS_BINARY_NAME) || true
+	./$(COLLECTOR_ZFS_BINARY_NAME) || true
+endif
+
 .PHONY: binary-web
 binary-web: binary-dep
 	go build -ldflags "$(LD_FLAGS)" -o $(WEB_BINARY_NAME) $(STATIC_TAGS) ./webapp/backend/cmd/scrutiny/
@@ -101,22 +116,24 @@ endif
 ########################################################################################################################
 
 .PHONY: binary-frontend
-# reduce logging, disable angular-cli analytics for ci environment
-binary-frontend: export NPM_CONFIG_LOGLEVEL = warn
-binary-frontend: export NG_CLI_ANALYTICS = false
 binary-frontend:
-	cd webapp/frontend
-	npm install -g @angular/cli@v13-lts
+	cd webapp/frontend-react
+	pnpm install --frozen-lockfile
+	pnpm run build
 	mkdir -p $(CURDIR)/dist
-	npm ci
-	npm run build:prod -- --output-path=$(CURDIR)/dist
+	cp -r dist/* $(CURDIR)/dist/
+
+.PHONY: binary-frontend-test
+binary-frontend-test:
+	cd webapp/frontend-react
+	pnpm install --frozen-lockfile
+	pnpm run test:run
 
 .PHONY: binary-frontend-test-coverage
-# reduce logging, disable angular-cli analytics for ci environment
 binary-frontend-test-coverage:
-	cd webapp/frontend
-	npm ci
-	npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
+	cd webapp/frontend-react
+	pnpm install --frozen-lockfile
+	pnpm run test:coverage
 
 ########################################################################################################################
 # Docker
@@ -132,6 +149,11 @@ docker-collector:
 docker-web:
 	@echo "building web docker image"
 	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile.web -t analogj/scrutiny-dev:web .
+
+.PHONY: docker-collector-zfs
+docker-collector-zfs:
+	@echo "building collector-zfs docker image"
+	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile.collector-zfs -t analogj/scrutiny-dev:collector-zfs .
 
 .PHONY: docker-omnibus
 docker-omnibus:

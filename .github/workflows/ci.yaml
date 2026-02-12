@@ -16,14 +16,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Setup pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+      - name: Install dependencies
+        working-directory: webapp/frontend-react
+        run: pnpm install --frozen-lockfile
       - name: Test Frontend
-        run: |
-          make binary-frontend-test-coverage
+        working-directory: webapp/frontend-react
+        run: pnpm run test:coverage
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: ${{ github.workspace }}/webapp/frontend/coverage/lcov.info
+          path: ${{ github.workspace }}/webapp/frontend-react/coverage/lcov.info
           retention-days: 1
   test-backend:
     name: Test Backend
@@ -129,3 +138,4 @@ jobs:
           path: |
             scrutiny-web-*
             scrutiny-collector-metrics-*
+            scrutiny-collector-zfs-*

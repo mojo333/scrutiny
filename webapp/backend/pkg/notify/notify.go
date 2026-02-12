@@ -32,28 +32,37 @@ const NotifyFailureTypeSmartFailure = "SmartFailure"
 const NotifyFailureTypeScrutinyFailure = "ScrutinyFailure"
 
 // ShouldNotify check if the error Message should be filtered (level mismatch or filtered_attributes)
-func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs measurements.Smart, statusThreshold pkg.MetricsStatusThreshold, statusFilterAttributes pkg.MetricsStatusFilterAttributes, repeatNotifications bool, c *gin.Context, deviceRepo database.DeviceRepo) bool {
+func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs measurements.Smart, statusThreshold pkg.MetricsStatusThreshold, statusFilterAttributes pkg.MetricsStatusFilterAttributes, notifyLevel pkg.MetricsNotifyLevel, repeatNotifications bool, c *gin.Context, deviceRepo database.DeviceRepo) bool {
 	// 1. check if the device is healthy
 	if device.DeviceStatus == pkg.DeviceStatusPassed {
 		return false
 	}
 
-	//TODO: cannot check for warning notifyLevel yet.
+	// If the device is muted, skip notification regardless of status
+	if device.Muted {
+		return false
+	}
 
 	// setup constants for comparison
 	var requiredDeviceStatus pkg.DeviceStatus
 	var requiredAttrStatus pkg.AttributeStatus
-	if statusThreshold == pkg.MetricsStatusThresholdBoth {
+	switch statusThreshold {
+	case pkg.MetricsStatusThresholdBoth:
 		// either scrutiny or smart failures should trigger an email
 		requiredDeviceStatus = pkg.DeviceStatusSet(pkg.DeviceStatusFailedSmart, pkg.DeviceStatusFailedScrutiny)
 		requiredAttrStatus = pkg.AttributeStatusSet(pkg.AttributeStatusFailedSmart, pkg.AttributeStatusFailedScrutiny)
-	} else if statusThreshold == pkg.MetricsStatusThresholdSmart {
+	case pkg.MetricsStatusThresholdSmart:
 		//only smart failures
 		requiredDeviceStatus = pkg.DeviceStatusFailedSmart
 		requiredAttrStatus = pkg.AttributeStatusFailedSmart
-	} else {
+	default:
 		requiredDeviceStatus = pkg.DeviceStatusFailedScrutiny
 		requiredAttrStatus = pkg.AttributeStatusFailedScrutiny
+	}
+
+	// If notify level is set to Warn, also include warning status
+	if notifyLevel == pkg.MetricsNotifyLevelWarn && statusThreshold != pkg.MetricsStatusThresholdSmart {
+		requiredAttrStatus = pkg.AttributeStatusSet(requiredAttrStatus, pkg.AttributeStatusWarningScrutiny)
 	}
 
 	// This is the only case where individual attributes need not be considered
