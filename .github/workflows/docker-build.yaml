@@ -71,7 +71,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: "Populate frontend version information"
-        run: "cd webapp/frontend-react && ./git.version.sh"
+        run: "cd webapp/frontend-react && chmod +x git.version.sh && ./git.version.sh"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -125,7 +125,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: "Populate frontend version information"
-        run: "cd webapp/frontend-react && ./git.version.sh"
+        run: "cd webapp/frontend-react && chmod +x git.version.sh && ./git.version.sh"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
