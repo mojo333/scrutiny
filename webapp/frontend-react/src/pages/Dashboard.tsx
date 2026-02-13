@@ -27,19 +27,46 @@ import type { DurationKey } from '@/types/settings';
 
 export function Dashboard() {
   const [showArchived, setShowArchived] = useState(false);
-  const [tempDurationKey, setTempDurationKey] = useState<DurationKey>('forever');
-  const [lineStroke, setLineStroke] = useState<'smooth' | 'straight' | 'stepline'>('smooth');
+  const [tempDurationKey, setTempDurationKey] = useState<DurationKey>(
+    () => (sessionStorage.getItem('scrutiny_temp_duration') as DurationKey) || 'week'
+  );
+  const [lineStroke, setLineStroke] = useState<'smooth' | 'straight' | 'stepline'>(
+    () => (sessionStorage.getItem('scrutiny_line_stroke') as 'smooth' | 'straight' | 'stepline') || 'smooth'
+  );
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [visibleDevices, setVisibleDevices] = useState<Set<string>>(new Set());
+  const [visibleDevices, setVisibleDevices] = useState<Set<string>>(() => {
+    const stored = sessionStorage.getItem('scrutiny_visible_devices');
+    if (stored) {
+      try {
+        return new Set(JSON.parse(stored) as string[]);
+      } catch { /* fall through */ }
+    }
+    return new Set();
+  });
   const { data: config } = useAppConfig();
   const queryClient = useQueryClient();
 
-  // Initialize lineStroke from config
+  // Initialize lineStroke from config (only if no sessionStorage value)
   useEffect(() => {
-    if (config?.line_stroke) {
+    if (config?.line_stroke && !sessionStorage.getItem('scrutiny_line_stroke')) {
       setLineStroke(config.line_stroke);
     }
   }, [config?.line_stroke]);
+
+  // Persist tempDurationKey to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('scrutiny_temp_duration', tempDurationKey);
+  }, [tempDurationKey]);
+
+  // Persist lineStroke to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('scrutiny_line_stroke', lineStroke);
+  }, [lineStroke]);
+
+  // Persist visibleDevices to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('scrutiny_visible_devices', JSON.stringify([...visibleDevices]));
+  }, [visibleDevices]);
 
   const { data: summaryData, isLoading, isError } = useDashboardSummary();
   const { data: tempHistoryData } = useDashboardSummaryTemp(tempDurationKey);
@@ -61,9 +88,9 @@ export function Dashboard() {
     return merged;
   }, [summaryData, tempHistoryData]);
 
-  // Initialize visible devices when data loads
+  // Initialize visible devices when data loads (only if nothing stored in sessionStorage)
   useEffect(() => {
-    if (mergedSummaryData && visibleDevices.size === 0) {
+    if (mergedSummaryData && visibleDevices.size === 0 && !sessionStorage.getItem('scrutiny_visible_devices')) {
       const allDevices = new Set(Object.keys(mergedSummaryData));
       setVisibleDevices(allDevices);
     }
