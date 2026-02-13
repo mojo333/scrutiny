@@ -30,6 +30,7 @@ const (
 	// 60seconds * 60minutes * 24hours * 7 days * (52 + 52 + 4)weeks
 	RETENTION_PERIOD_25_MONTHS_IN_SECONDS = 65_318_400
 
+	DURATION_KEY_DAY     = "day"
 	DURATION_KEY_WEEK    = "week"
 	DURATION_KEY_MONTH   = "month"
 	DURATION_KEY_YEAR    = "year"
@@ -424,6 +425,9 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 
 func (sr *scrutinyRepository) lookupBucketName(durationKey string) string {
 	switch durationKey {
+	case DURATION_KEY_DAY:
+		//data stored in the last day
+		return sr.appConfig.GetString("web.influxdb.bucket")
 	case DURATION_KEY_WEEK:
 		//data stored in the last week
 		return sr.appConfig.GetString("web.influxdb.bucket")
@@ -443,6 +447,9 @@ func (sr *scrutinyRepository) lookupBucketName(durationKey string) string {
 func (sr *scrutinyRepository) lookupDuration(durationKey string) []string {
 
 	switch durationKey {
+	case DURATION_KEY_DAY:
+		//data stored in the last day
+		return []string{"-1d", "now()"}
 	case DURATION_KEY_WEEK:
 		//data stored in the last week
 		return []string{"-1w", "now()"}
@@ -461,6 +468,9 @@ func (sr *scrutinyRepository) lookupDuration(durationKey string) []string {
 
 func (sr *scrutinyRepository) lookupNestedDurationKeys(durationKey string) []string {
 	switch durationKey {
+	case DURATION_KEY_DAY:
+		//all data is stored in a single bucket
+		return []string{DURATION_KEY_DAY}
 	case DURATION_KEY_WEEK:
 		//all data is stored in a single bucket
 		return []string{DURATION_KEY_WEEK}
