@@ -13,3 +13,12 @@ COLLECTOR_CRON_SCHEDULE=${COLLECTOR_CRON_SCHEDULE:-"0 0 * * *"}
 
 # replace placeholder with correct value
 sed -i 's|{COLLECTOR_CRON_SCHEDULE}|'"${COLLECTOR_CRON_SCHEDULE}"'|g' /etc/cron.d/scrutiny
+
+# adding ability to customize the ZFS cron schedule.
+COLLECTOR_ZFS_CRON_SCHEDULE=${COLLECTOR_ZFS_CRON_SCHEDULE:-"*/15 * * * *"}
+
+# if the cron schedule has been overridden via env variable (eg docker-compose) we should make sure to strip quotes
+[[ "${COLLECTOR_ZFS_CRON_SCHEDULE}" == \"*\" || "${COLLECTOR_ZFS_CRON_SCHEDULE}" == \'*\' ]] && COLLECTOR_ZFS_CRON_SCHEDULE="${COLLECTOR_ZFS_CRON_SCHEDULE:1:-1}"
+
+# replace placeholder with correct value
+sed -i 's|{COLLECTOR_ZFS_CRON_SCHEDULE}|'"${COLLECTOR_ZFS_CRON_SCHEDULE}"'|g' /etc/cron.d/scrutiny-zfs

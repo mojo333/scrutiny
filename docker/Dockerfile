@@ -37,7 +37,9 @@ ENV INFLUXVER="2.2.0"
 ENV S6_SERVICES_READYTIME=1000
 SHELL ["/usr/bin/sh", "-c"]
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
+RUN echo "deb http://deb.debian.org/debian bookworm contrib" >> /etc/apt/sources.list && \
+    echo "deb http://deb.debian.org/debian bookworm-updates contrib" >> /etc/apt/sources.list && \
+    apt-get update && DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends \
     ca-certificates \
     cron \
@@ -46,6 +48,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
     tzdata \
     procps \
     xz-utils \
+    zfsutils-linux \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates \
     && case ${TARGETARCH} in \
@@ -75,8 +78,10 @@ COPY /rootfs /
 
 COPY --link --from=backendbuild --chmod=755 /go/src/github.com/analogj/scrutiny/scrutiny /opt/scrutiny/bin/
 COPY --link --from=backendbuild --chmod=755 /go/src/github.com/analogj/scrutiny/scrutiny-collector-metrics /opt/scrutiny/bin/
+COPY --link --from=backendbuild --chmod=755 /go/src/github.com/analogj/scrutiny/scrutiny-collector-zfs /opt/scrutiny/bin/
 COPY --link --from=frontendbuild --chmod=644 /go/src/github.com/analogj/scrutiny/webapp/frontend-react/dist /opt/scrutiny/web
 RUN chmod 0644 /etc/cron.d/scrutiny && \
+    chmod 0644 /etc/cron.d/scrutiny-zfs && \
     rm -f /etc/cron.daily/* && \
     mkdir -p /opt/scrutiny/web && \
     mkdir -p /opt/scrutiny/config && \
