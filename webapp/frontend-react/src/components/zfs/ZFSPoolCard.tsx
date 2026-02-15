@@ -309,14 +309,14 @@ export function ZFSPoolCard({ pool }: ZFSPoolCardProps) {
           </div>
           {pool.scrub_state === 'scanning' && (
             <div className="text-sm text-blue-400 mt-1">
-              {pool.scrub_percent.toFixed(1)}% complete
+              {(pool.scrub_percent ?? 0).toFixed(1)}% complete
             </div>
           )}
         </div>
 
         <div>
           <div className="text-xs text-hint uppercase tracking-wider mb-2">UTILIZATION</div>
-          <div className="text-3xl font-bold text-green">{pool.capacity_percent.toFixed(0)}%</div>
+          <div className="text-3xl font-bold text-green">{(pool.capacity_percent ?? 0).toFixed(0)}%</div>
         </div>
       </div>
 

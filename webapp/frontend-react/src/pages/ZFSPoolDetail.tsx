@@ -68,7 +68,7 @@ export function ZFSPoolDetail() {
       min: 0,
       max: 100,
       labels: {
-        formatter: (val) => `${val.toFixed(0)}%`,
+        formatter: (val) => `${(val ?? 0).toFixed(0)}%`,
       },
     },
     tooltip: {
@@ -76,7 +76,7 @@ export function ZFSPoolDetail() {
         format: 'MMM dd, yyyy',
       },
       y: {
-        formatter: (val) => `${val.toFixed(1)}%`,
+        formatter: (val) => `${(val ?? 0).toFixed(1)}%`,
       },
     },
   };
@@ -134,7 +134,7 @@ export function ZFSPoolDetail() {
         </Card>
         <Card className="p-4">
           <div className="text-sm text-muted-foreground">Capacity</div>
-          <div className="text-2xl font-bold">{pool.capacity_percent.toFixed(1)}%</div>
+          <div className="text-2xl font-bold">{(pool.capacity_percent ?? 0).toFixed(1)}%</div>
         </Card>
         <Card className="p-4">
           <div className="text-sm text-muted-foreground">Size</div>
@@ -171,7 +171,7 @@ export function ZFSPoolDetail() {
             {pool.scrub_state === 'scanning' && (
               <div>
                 <div className="text-sm text-muted-foreground">Progress</div>
-                <div className="font-semibold">{pool.scrub_percent.toFixed(1)}%</div>
+                <div className="font-semibold">{(pool.scrub_percent ?? 0).toFixed(1)}%</div>
               </div>
             )}
             {pool.scrub_errors > 0 && (

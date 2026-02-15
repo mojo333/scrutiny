@@ -98,7 +98,7 @@ export function TemperatureChart({
       y: {
         formatter: (value: number) => {
           const unit = temperatureUnit === 'fahrenheit' ? '°F' : '°C';
-          return `${value.toFixed(1)}${unit}`;
+          return value != null ? `${value.toFixed(1)}${unit}` : '';
         }
       }
     },
@@ -111,7 +111,7 @@ export function TemperatureChart({
     yaxis: {
       labels: {
         formatter: (value: number) => {
-          return value.toFixed(0);
+          return value != null ? value.toFixed(0) : '';
         }
       }
     }
