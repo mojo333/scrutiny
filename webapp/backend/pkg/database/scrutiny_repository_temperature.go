@@ -117,7 +117,7 @@ func (sr *scrutinyRepository) aggregateTempQuery(durationKey string) string {
 		weekData = from(bucket: "metrics")
 		  |> range(start: -1w, stop: now())
 		  |> filter(fn: (r) => r["_measurement"] == "temp" )
-		  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+		  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)  // "day" uses 15m
 		  |> group(columns: ["device_wwn"])
 		  |> toInt()
 
@@ -141,6 +141,8 @@ func (sr *scrutinyRepository) aggregateTempQuery(durationKey string) string {
 
 	nestedDurationKeys := sr.lookupNestedDurationKeys(durationKey)
 
+	aggregateWindow := sr.lookupAggregateWindow(durationKey)
+
 	subQueryNames := []string{}
 	for _, nestedDurationKey := range nestedDurationKeys {
 		bucketName := sr.lookupBucketName(nestedDurationKey)
@@ -151,7 +153,7 @@ func (sr *scrutinyRepository) aggregateTempQuery(durationKey string) string {
 			fmt.Sprintf(`%sData = from(bucket: "%s")`, nestedDurationKey, bucketName),
 			fmt.Sprintf(`|> range(start: %s, stop: %s)`, durationRange[0], durationRange[1]),
 			`|> filter(fn: (r) => r["_measurement"] == "temp" )`,
-			`|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)`,
+			fmt.Sprintf(`|> aggregateWindow(every: %s, fn: mean, createEmpty: false)`, aggregateWindow),
 			`|> group(columns: ["device_wwn"])`,
 			`|> toInt()`,
 			"",

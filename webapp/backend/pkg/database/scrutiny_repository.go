@@ -466,6 +466,15 @@ func (sr *scrutinyRepository) lookupDuration(durationKey string) []string {
 	return []string{"-1w", "now()"}
 }
 
+func (sr *scrutinyRepository) lookupAggregateWindow(durationKey string) string {
+	switch durationKey {
+	case DURATION_KEY_DAY:
+		return "15m"
+	default:
+		return "1h"
+	}
+}
+
 func (sr *scrutinyRepository) lookupNestedDurationKeys(durationKey string) []string {
 	switch durationKey {
 	case DURATION_KEY_DAY:

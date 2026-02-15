@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useDashboardSummary, useDashboardSummaryTemp } from '@/hooks/useDashboard';
 import { useAppConfig } from '@/hooks/useAppConfig';
@@ -34,6 +34,7 @@ export function Dashboard() {
     () => (sessionStorage.getItem('scrutiny_line_stroke') as 'smooth' | 'straight' | 'stepline') || 'smooth'
   );
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const hasExplicitDeviceChoice = useRef(!!sessionStorage.getItem('scrutiny_visible_devices'));
   const [visibleDevices, setVisibleDevices] = useState<Set<string>>(() => {
     const stored = sessionStorage.getItem('scrutiny_visible_devices');
     if (stored) {
@@ -63,9 +64,11 @@ export function Dashboard() {
     sessionStorage.setItem('scrutiny_line_stroke', lineStroke);
   }, [lineStroke]);
 
-  // Persist visibleDevices to sessionStorage
+  // Persist visibleDevices to sessionStorage (only after user has made an explicit choice)
   useEffect(() => {
-    sessionStorage.setItem('scrutiny_visible_devices', JSON.stringify([...visibleDevices]));
+    if (hasExplicitDeviceChoice.current) {
+      sessionStorage.setItem('scrutiny_visible_devices', JSON.stringify([...visibleDevices]));
+    }
   }, [visibleDevices]);
 
   const { data: summaryData, isLoading, isError } = useDashboardSummary();
@@ -88,11 +91,10 @@ export function Dashboard() {
     return merged;
   }, [summaryData, tempHistoryData]);
 
-  // Initialize visible devices when data loads (only if nothing stored in sessionStorage)
+  // Initialize visible devices when data loads (only if user hasn't made an explicit choice)
   useEffect(() => {
-    if (mergedSummaryData && visibleDevices.size === 0 && !sessionStorage.getItem('scrutiny_visible_devices')) {
-      const allDevices = new Set(Object.keys(mergedSummaryData));
-      setVisibleDevices(allDevices);
+    if (mergedSummaryData && !hasExplicitDeviceChoice.current) {
+      setVisibleDevices(new Set(Object.keys(mergedSummaryData)));
     }
   }, [mergedSummaryData]);
 
@@ -248,6 +250,7 @@ export function Dashboard() {
                       <DropdownMenuItem
                         onSelect={(e) => e.preventDefault()}
                         onClick={() => {
+                          hasExplicitDeviceChoice.current = true;
                           const allDevices = new Set(Object.keys(mergedSummaryData || {}));
                           setVisibleDevices(allDevices);
                         }}
@@ -256,7 +259,10 @@ export function Dashboard() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onSelect={(e) => e.preventDefault()}
-                        onClick={() => setVisibleDevices(new Set())}
+                        onClick={() => {
+                          hasExplicitDeviceChoice.current = true;
+                          setVisibleDevices(new Set());
+                        }}
                       >
                         Hide All
                       </DropdownMenuItem>
@@ -272,6 +278,7 @@ export function Dashboard() {
                             checked={visibleDevices.has(wwn)}
                             onSelect={(e) => e.preventDefault()}
                             onCheckedChange={(checked) => {
+                              hasExplicitDeviceChoice.current = true;
                               const newVisible = new Set(visibleDevices);
                               if (checked) {
                                 newVisible.add(wwn);
