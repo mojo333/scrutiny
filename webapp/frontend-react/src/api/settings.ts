@@ -7,6 +7,7 @@ export type { AppConfig } from '@/types/settings';
 interface GetSettingsResponse {
   success: boolean;
   settings: AppConfig;
+  version?: string;
 }
 
 /**
@@ -14,7 +15,7 @@ interface GetSettingsResponse {
  */
 export async function getSettings(): Promise<AppConfig> {
   const { data } = await api.get<GetSettingsResponse>('/settings');
-  return data.settings;
+  return { ...data.settings, version: data.version || '' };
 }
 
 /**

@@ -79,11 +79,11 @@ export function MainLayout() {
               {/* Spacer */}
               <div className="spacer"></div>
 
+              {/* Version */}
+              {config?.version && <code className="text-sm text-muted-foreground mr-3">v{config.version}</code>}
+
               {/* Theme Toggle */}
               <ThemeToggle />
-
-              {/* Version */}
-              {config?.version && <code className="ml-4">{config.version}</code>}
             </div>
           </div>
         </div>
