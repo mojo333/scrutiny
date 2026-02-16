@@ -95,7 +95,6 @@ export function ZFSPoolDetail() {
   const renderVdevTree = (vdev: ZFSVdevModel, level = 0) => {
     const hasErrors =
       vdev.read_errors > 0 || vdev.write_errors > 0 || vdev.checksum_errors > 0;
-    const statusColor = vdev.status === 'ONLINE' ? 'text-green-500' : 'text-red-500';
 
     return (
       <div key={vdev.id} className={`${level > 0 ? 'ml-8' : ''} mb-2`}>
@@ -104,7 +103,7 @@ export function ZFSPoolDetail() {
             <span className="font-semibold">{vdev.name}</span>
             <span className="text-muted-foreground ml-2">({vdev.type})</span>
           </div>
-          <div className={`${statusColor} font-semibold`}>{vdev.status}</div>
+          <div className="text-white font-semibold">{vdev.status}</div>
           {hasErrors && (
             <div className="text-red-500 text-sm">
               R:{vdev.read_errors} W:{vdev.write_errors} C:{vdev.checksum_errors}

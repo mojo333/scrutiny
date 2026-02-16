@@ -6,7 +6,7 @@
 (set -o posix; export -p) > /env.sh
 
 # adding ability to customize the cron schedule.
-COLLECTOR_CRON_SCHEDULE=${COLLECTOR_CRON_SCHEDULE:-"0 0 * * *"}
+COLLECTOR_CRON_SCHEDULE=${COLLECTOR_CRON_SCHEDULE:-"0 * * * *"}
 
 # if the cron schedule has been overridden via env variable (eg docker-compose) we should make sure to strip quotes
 [[ "${COLLECTOR_CRON_SCHEDULE}" == \"*\" || "${COLLECTOR_CRON_SCHEDULE}" == \'*\' ]] && COLLECTOR_CRON_SCHEDULE="${COLLECTOR_CRON_SCHEDULE:1:-1}"

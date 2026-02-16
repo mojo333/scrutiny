@@ -167,7 +167,7 @@ export function ZFSPoolCard({ pool }: ZFSPoolCardProps) {
                 </TooltipProvider>
               )}
               <Badge
-                className={`text-xs font-bold px-4 py-1.5 min-w-[80px] justify-center ${
+                className={`text-xs font-bold px-4 py-1.5 min-w-[80px] justify-center text-white ${
                   vdev.status === 'ONLINE'
                     ? 'bg-green-600 hover:bg-green-600'
                     : vdev.status === 'DEGRADED'
