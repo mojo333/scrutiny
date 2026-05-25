@@ -18,18 +18,19 @@ import type { SmartAttributeModel } from '@/models/measurements/smart-attribute-
 import type { AttributeMetadataModel } from '@/models/thresholds/attribute-metadata-model';
 import { Button } from '@/components/ui/button';
 import { Info, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp } from 'lucide-react';
-import { AttributeStatus } from '@/constants';
+import {
+  ExpandedAttributeRow,
+  type AttributeRow,
+  getAttributeStatusName,
+  getAttributeValue,
+  buildAttributeHistory,
+} from './ExpandedAttributeRow';
 
 interface SmartAttributesTableProps {
   device: DeviceModel;
   smartResults: SmartModel[];
   metadata: { [key: string]: AttributeMetadataModel } | { [key: number]: AttributeMetadataModel };
 }
-
-type AttributeRow = SmartAttributeModel & {
-  metadata?: AttributeMetadataModel;
-  smartHistory: SmartModel[];
-};
 
 const columnHelper = createColumnHelper<AttributeRow>();
 
@@ -46,55 +47,9 @@ export function SmartAttributesTable({
   const isScsi = device.device_protocol === 'SCSI';
   const isNvme = device.device_protocol === 'NVMe';
 
-  // Helper to safely access metadata - handles both string and number keys
   const getMetadata = (attrId: string | number): AttributeMetadataModel | undefined => {
-    // Check if metadata uses string keys
-    if (typeof attrId === 'string' && attrId in metadata) {
-      return (metadata as { [key: string]: AttributeMetadataModel })[attrId];
-    }
-    // Check if metadata uses number keys
-    if (typeof attrId === 'number' && attrId in metadata) {
-      return (metadata as { [key: number]: AttributeMetadataModel })[attrId];
-    }
-    // Try converting string to number and vice versa as fallback
-    const alternateId = typeof attrId === 'string' ? Number(attrId) : String(attrId);
-    if (alternateId in metadata) {
-      if (typeof alternateId === 'string') {
-        return (metadata as { [key: string]: AttributeMetadataModel })[alternateId];
-      } else {
-        return (metadata as { [key: number]: AttributeMetadataModel })[alternateId];
-      }
-    }
-    return undefined;
-  };
-
-  // Helper functions
-  const getAttributeStatusName = (status: number): string => {
-    if (status === AttributeStatus.Passed) {
-      return 'passed';
-    } else if ((status & AttributeStatus.FailedScrutiny) !== 0 || (status & AttributeStatus.FailedSmart) !== 0) {
-      return 'failed';
-    } else if ((status & AttributeStatus.WarningScrutiny) !== 0) {
-      return 'warn';
-    }
-    return 'unknown';
-  };
-
-  // Helper to get the correct value based on metadata display_type (matching Angular logic)
-  const getAttributeValue = (attrData: SmartAttributeModel, attrMeta?: AttributeMetadataModel): number => {
-    if (isAta) {
-      if (!attrMeta) {
-        return attrData.value;
-      } else if (attrMeta.display_type === 'raw') {
-        return attrData.raw_value ?? attrData.value;
-      } else if (attrMeta.display_type === 'transformed' && attrData.transformed_value !== undefined) {
-        return attrData.transformed_value;
-      } else {
-        return attrData.value;
-      }
-    } else {
-      return attrData.value;
-    }
+    const m = metadata as Record<string | number, AttributeMetadataModel>;
+    return m[attrId] ?? m[typeof attrId === 'string' ? Number(attrId) : String(attrId)];
   };
 
   // Generate table data
@@ -109,7 +64,6 @@ export function SmartAttributesTable({
       const attr = attrs[attrId];
       const attrMeta = getMetadata(attr.attribute_id);
 
-      // Filter based on onlyCritical
       if (!onlyCritical || (onlyCritical && attrMeta?.critical) || attr.value < attr.thresh) {
         result.push({
           ...attr,
@@ -227,7 +181,7 @@ export function SmartAttributesTable({
         id: 'value',
         header: 'Value',
         cell: ({ row }) => {
-          const value = getAttributeValue(row.original, row.original.metadata);
+          const value = getAttributeValue(row.original, isAta, row.original.metadata);
           const unit = row.original.metadata?.transform_value_unit || '';
           return (
             <span>
@@ -279,47 +233,21 @@ export function SmartAttributesTable({
       );
     }
 
-    // History column with sparkline (bar chart like Angular)
+    // History column with sparkline
     cols.push(
       columnHelper.display({
         id: 'history',
         header: 'History',
         cell: ({ row }) => {
-          const historyData: { x: string; y: number; strokeColor?: string; fillColor?: string }[] = [];
-
-          // Build chart data (same as Angular version)
-          for (const smartResult of row.original.smartHistory) {
-            const attrData = smartResult.attrs?.[row.original.attribute_id];
-            if (!attrData) continue;
-
-            const date = new Date(smartResult.date);
-            const formattedDate = date.toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-
-            const datapoint: { x: string; y: number; strokeColor?: string; fillColor?: string } = {
-              x: formattedDate,
-              y: getAttributeValue(attrData, row.original.metadata),
-            };
-
-            const statusName = getAttributeStatusName(attrData.status);
-            if (statusName === 'failed') {
-              datapoint.strokeColor = '#F05252';
-              datapoint.fillColor = '#F05252';
-            } else if (statusName === 'warn') {
-              datapoint.strokeColor = '#C27803';
-              datapoint.fillColor = '#C27803';
-            }
-
-            historyData.push(datapoint);
-          }
-
-          // Reverse so newest data is on the right (fixes #339)
-          historyData.reverse();
+          const historyData = buildAttributeHistory(
+            row.original.smartHistory,
+            row.original.attribute_id,
+            row.original.metadata,
+            isAta
+          ).map(pt => ({
+            ...pt,
+            x: pt.x.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          })).reverse();
 
           if (historyData.length === 0) {
             return <div className="h-[25px] w-[100px]" />;
@@ -341,21 +269,12 @@ export function SmartAttributesTable({
               theme: 'dark',
               fixed: { enabled: false },
               x: { show: true },
-              y: {
-                title: {
-                  formatter: () => '',
-                },
-              },
-              marker: {
-                show: false,
-              },
+              y: { title: { formatter: () => '' } },
+              marker: { show: false },
             },
           };
 
-          const sparklineSeries = [{
-            name: 'chart-line-sparkline',
-            data: historyData
-          }];
+          const sparklineSeries = [{ name: 'chart-line-sparkline', data: historyData }];
 
           return (
             <div className="inline-block">
@@ -384,166 +303,6 @@ export function SmartAttributesTable({
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: () => true,
   });
-
-  // Get status indicator colors
-  const getScrutinyStatusColor = (status: number): string => {
-    const statusName = getAttributeStatusName(status);
-    if (statusName === 'failed') return 'bg-red';
-    if (statusName === 'passed') return 'bg-green';
-    if (statusName === 'warn') return 'bg-yellow';
-    return 'bg-gray-500';
-  };
-
-  const getSmartStatusColor = (status: number): string => {
-    if ((status & AttributeStatus.FailedSmart) !== 0) return 'bg-red';
-    return 'bg-green';
-  };
-
-  // Render expanded row content (details + chart)
-  const renderExpandedRow = (row: AttributeRow) => {
-    const historyData: { x: Date | string; y: number | null; strokeColor?: string; fillColor?: string }[] = [];
-
-    // Build history data
-    for (const smartResult of row.smartHistory) {
-      const date = new Date(smartResult.date);
-      const attrData = smartResult.attrs?.[row.attribute_id];
-      if (!attrData) continue;
-
-      const value = getAttributeValue(attrData, row.metadata);
-      const statusName = getAttributeStatusName(attrData.status);
-      const datapoint: { x: Date | string; y: number | null; strokeColor?: string; fillColor?: string } = {
-        x: date,
-        y: value
-      };
-
-      if (statusName === 'failed') {
-        datapoint.strokeColor = '#F05252';
-        datapoint.fillColor = '#F05252';
-      } else if (statusName === 'warn') {
-        datapoint.strokeColor = '#C27803';
-        datapoint.fillColor = '#C27803';
-      }
-
-      historyData.push(datapoint);
-    }
-
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-    const chartOptions: ApexOptions = {
-      chart: {
-        type: 'line',
-        sparkline: { enabled: false },
-        animations: { enabled: false },
-        toolbar: { show: false },
-        background: 'transparent',
-      },
-      stroke: { curve: 'smooth', width: 2 },
-      markers: { size: 3 },
-      tooltip: {
-        theme: isDark ? 'dark' : 'light',
-        x: { format: 'dd MMM yyyy' },
-      },
-      colors: ['#3F83F8'],
-      xaxis: {
-        type: 'datetime',
-        labels: {
-          style: {
-            colors: isDark ? '#9FA6B2' : '#6B7280',
-          },
-        },
-      },
-      yaxis: {
-        labels: {
-          style: {
-            colors: isDark ? '#9FA6B2' : '#6B7280',
-          },
-        },
-      },
-      grid: {
-        borderColor: isDark ? '#374151' : '#E5E7EB',
-      },
-    };
-
-    const chartSeries = [{ name: row.metadata?.display_name || 'Value', data: historyData }];
-
-    const displayValue = getAttributeValue(row, row.metadata);
-    const transformedValue = displayValue + (row.metadata?.transform_value_unit || '');
-    const worstValue = row.worst !== undefined ? row.worst : '--';
-    const threshValue = row.thresh || '--';
-    const failureRate = row.failure_rate !== undefined && row.failure_rate !== null
-      ? `${(row.failure_rate * 100).toFixed(2)}%`
-      : '--';
-
-    return (
-      <tr className="bg-gray-50 dark:bg-cool-gray-800">
-        <td colSpan={columns.length} className="p-0">
-          <div className="flex flex-col md:flex-row text-gray-900 dark:text-gray-300">
-            {/* Left side: Description */}
-            <div className="flex flex-auto w-full md:w-1/3 py-4 px-4">
-              <div className="flex flex-col flex-auto text-sm">
-                {row.metadata?.description || 'No description available'}
-              </div>
-            </div>
-
-            {/* Right side: Details table */}
-            <div className="flex flex-auto w-full md:w-2/3 py-4 px-6">
-              <div className="flex flex-col flex-auto text-sm">
-                {/* Header row */}
-                <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700 font-semibold">
-                  <div className="flex items-center w-1/4">Type</div>
-                  <div className="flex items-center w-1/4">Value</div>
-                  <div className="flex items-center w-1/4">Worst/Thresh</div>
-                  <div className="flex items-center w-1/4">Failure %</div>
-                </div>
-
-                {/* Scrutiny row */}
-                <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center w-1/4">
-                    <div className={`flex-shrink-0 w-2 h-2 mr-3 rounded-full ${getScrutinyStatusColor(row.status)}`}></div>
-                    <div className="truncate">Scrutiny</div>
-                  </div>
-                  <div className="w-1/4 items-center font-medium">{transformedValue}</div>
-                  <div className="w-1/4 items-center text-gray-500 dark:text-hint">--</div>
-                  <div className="w-1/4 items-center text-gray-500 dark:text-hint">{failureRate}</div>
-                </div>
-
-                {/* Normalized row */}
-                <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center w-1/4">
-                    <div className={`flex-shrink-0 w-2 h-2 mr-3 rounded-full ${getSmartStatusColor(row.status)}`}></div>
-                    <div className="truncate">Normalized</div>
-                  </div>
-                  <div className="w-1/4 items-center font-medium">{row.value}</div>
-                  <div className="w-1/4 items-center text-gray-500 dark:text-hint">{worstValue}/{threshValue}</div>
-                  <div className="w-1/4 items-center text-gray-500 dark:text-hint">--</div>
-                </div>
-
-                {/* Raw row */}
-                <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center w-1/4">
-                    <div className="flex-shrink-0 w-2 h-2 mr-3"></div>
-                    <div className="truncate">Raw</div>
-                  </div>
-                  <div className="w-1/4 items-center font-medium">{row.raw_value || row.raw_string || '--'}</div>
-                  <div className="w-1/4 items-center text-gray-500 dark:text-hint">--</div>
-                  <div className="w-1/4 items-center text-gray-500 dark:text-hint">--</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Chart section below */}
-          {historyData.length > 0 && (
-            <div className="px-4 pb-4">
-              <div className="h-64 w-full">
-                <Chart options={chartOptions} series={chartSeries} type="line" height="100%" width="100%" />
-              </div>
-            </div>
-          )}
-        </td>
-      </tr>
-    );
-  };
 
   if (!smartResults || smartResults.length === 0) {
     return <div className="p-4 text-hint">No SMART data available</div>;
@@ -616,7 +375,9 @@ export function SmartAttributesTable({
                       </td>
                     ))}
                   </tr>
-                  {row.getIsExpanded() && renderExpandedRow(row.original)}
+                  {row.getIsExpanded() && (
+                    <ExpandedAttributeRow row={row.original} columnsLength={columns.length} isAta={isAta} />
+                  )}
                 </React.Fragment>
               );
             })}

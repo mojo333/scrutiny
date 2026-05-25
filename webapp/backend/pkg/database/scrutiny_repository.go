@@ -243,8 +243,8 @@ func (sr *scrutinyRepository) EnsureBuckets(ctx context.Context, org *domain.Org
 	var mainBucketRetentionRule domain.RetentionRule
 	var weeklyBucketRetentionRule domain.RetentionRule
 	var monthlyBucketRetentionRule domain.RetentionRule
-	if sr.appConfig.GetBool("web.influxdb.retention_policy") {
-
+	updateRetention := sr.appConfig.GetBool("web.influxdb.retention_policy")
+	if updateRetention {
 		// in tests, we may not want to set a retention policy. If "false", we can set data with old timestamps,
 		// then manually run the down sampling scripts. This should be true for production environments.
 		mainBucketRetentionRule = domain.RetentionRule{EverySeconds: RETENTION_PERIOD_15_DAYS_IN_SECONDS}
@@ -253,52 +253,17 @@ func (sr *scrutinyRepository) EnsureBuckets(ctx context.Context, org *domain.Org
 	}
 
 	mainBucket := sr.appConfig.GetString("web.influxdb.bucket")
-	if foundMainBucket, foundErr := sr.influxClient.BucketsAPI().FindBucketByName(ctx, mainBucket); foundErr != nil {
-		// metrics bucket will have a retention period of 15 days (since it will be down-sampled once a week)
-		_, err := sr.influxClient.BucketsAPI().CreateBucketWithName(ctx, org, mainBucket, mainBucketRetentionRule)
-		if err != nil {
-			return err
-		}
-	} else if sr.appConfig.GetBool("web.influxdb.retention_policy") {
-		//correctly set the retention period for the main bucket (cant do it during setup/creation)
-		foundMainBucket.RetentionRules = domain.RetentionRules{mainBucketRetentionRule}
-		if _, err := sr.influxClient.BucketsAPI().UpdateBucket(ctx, foundMainBucket); err != nil {
-			return fmt.Errorf("failed to update main bucket retention policy: %w", err)
-		}
+	if err := sr.ensureBucket(ctx, org, mainBucket, mainBucketRetentionRule, updateRetention); err != nil {
+		return err
+	}
+	if err := sr.ensureBucket(ctx, org, fmt.Sprintf("%s_weekly", mainBucket), weeklyBucketRetentionRule, updateRetention); err != nil {
+		return err
+	}
+	if err := sr.ensureBucket(ctx, org, fmt.Sprintf("%s_monthly", mainBucket), monthlyBucketRetentionRule, updateRetention); err != nil {
+		return err
 	}
 
-	//create buckets (used for downsampling)
-	weeklyBucket := fmt.Sprintf("%s_weekly", sr.appConfig.GetString("web.influxdb.bucket"))
-	if foundWeeklyBucket, foundErr := sr.influxClient.BucketsAPI().FindBucketByName(ctx, weeklyBucket); foundErr != nil {
-		// metrics_weekly bucket will have a retention period of 8+1 weeks (since it will be down-sampled once a month)
-		_, err := sr.influxClient.BucketsAPI().CreateBucketWithName(ctx, org, weeklyBucket, weeklyBucketRetentionRule)
-		if err != nil {
-			return err
-		}
-	} else if sr.appConfig.GetBool("web.influxdb.retention_policy") {
-		//correctly set the retention period for the bucket (may not be able to do it during setup/creation)
-		foundWeeklyBucket.RetentionRules = domain.RetentionRules{weeklyBucketRetentionRule}
-		if _, err := sr.influxClient.BucketsAPI().UpdateBucket(ctx, foundWeeklyBucket); err != nil {
-			return fmt.Errorf("failed to update weekly bucket retention policy: %w", err)
-		}
-	}
-
-	monthlyBucket := fmt.Sprintf("%s_monthly", sr.appConfig.GetString("web.influxdb.bucket"))
-	if foundMonthlyBucket, foundErr := sr.influxClient.BucketsAPI().FindBucketByName(ctx, monthlyBucket); foundErr != nil {
-		// metrics_monthly bucket will have a retention period of 24+1 months (since it will be down-sampled once a year)
-		_, err := sr.influxClient.BucketsAPI().CreateBucketWithName(ctx, org, monthlyBucket, monthlyBucketRetentionRule)
-		if err != nil {
-			return err
-		}
-	} else if sr.appConfig.GetBool("web.influxdb.retention_policy") {
-		//correctly set the retention period for the bucket (may not be able to do it during setup/creation)
-		foundMonthlyBucket.RetentionRules = domain.RetentionRules{monthlyBucketRetentionRule}
-		if _, err := sr.influxClient.BucketsAPI().UpdateBucket(ctx, foundMonthlyBucket); err != nil {
-			return fmt.Errorf("failed to update monthly bucket retention policy: %w", err)
-		}
-	}
-
-	yearlyBucket := fmt.Sprintf("%s_yearly", sr.appConfig.GetString("web.influxdb.bucket"))
+	yearlyBucket := fmt.Sprintf("%s_yearly", mainBucket)
 	if _, foundErr := sr.influxClient.BucketsAPI().FindBucketByName(ctx, yearlyBucket); foundErr != nil {
 		// metrics_yearly bucket will have an infinite retention period
 		_, err := sr.influxClient.BucketsAPI().CreateBucketWithName(ctx, org, yearlyBucket)
@@ -307,6 +272,19 @@ func (sr *scrutinyRepository) EnsureBuckets(ctx context.Context, org *domain.Org
 		}
 	}
 
+	return nil
+}
+
+func (sr *scrutinyRepository) ensureBucket(ctx context.Context, org *domain.Organization, name string, retentionRule domain.RetentionRule, updateRetention bool) error {
+	if found, foundErr := sr.influxClient.BucketsAPI().FindBucketByName(ctx, name); foundErr != nil {
+		_, err := sr.influxClient.BucketsAPI().CreateBucketWithName(ctx, org, name, retentionRule)
+		return err
+	} else if updateRetention {
+		found.RetentionRules = domain.RetentionRules{retentionRule}
+		if _, err := sr.influxClient.BucketsAPI().UpdateBucket(ctx, found); err != nil {
+			return fmt.Errorf("failed to update %s bucket retention policy: %w", name, err)
+		}
+	}
 	return nil
 }
 
