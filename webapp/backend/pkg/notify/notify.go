@@ -27,8 +27,8 @@ import (
 )
 
 const NotifyFailureTypeEmailTest = "EmailTest"
-const NotifyFailureTypeBothFailure = "SmartFailure" //SmartFailure always takes precedence when Scrutiny & Smart failed.
 const NotifyFailureTypeSmartFailure = "SmartFailure"
+const NotifyFailureTypeBothFailure = NotifyFailureTypeSmartFailure //SmartFailure always takes precedence when Scrutiny & Smart failed.
 const NotifyFailureTypeScrutinyFailure = "ScrutinyFailure"
 
 // ShouldNotify check if the error Message should be filtered (level mismatch or filtered_attributes)
@@ -130,7 +130,6 @@ func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs me
 	return false
 }
 
-// TODO: include user label for device.
 type Payload struct {
 	HostId       string `json:"host_id,omitempty"` //host id (optional)
 	DeviceType   string `json:"device_type"`       //ATA/SCSI/NVMe
@@ -294,12 +293,6 @@ func (n *Notify) Send() error {
 		n.Logger.Error("One or more notifications failed to send successfully. See logs for more information.")
 		return err
 	}
-	////wg.Wait()
-	//if waitTimeout(&wg, time.Minute) { //wait for 1 minute
-	//	fmt.Println("Timed out while sending notifications")
-	//} else {
-	//}
-	//return nil
 }
 
 func (n *Notify) SendWebhookNotification(webhookUrl string) error {

@@ -37,27 +37,6 @@ const (
 	DURATION_KEY_FOREVER = "forever"
 )
 
-//// GormLogger is a custom logger for Gorm, making it use logrus.
-//type GormLogger struct{ Logger logrus.FieldLogger }
-//
-//// Print handles log events from Gorm for the custom logger.
-//func (gl *GormLogger) Print(v ...interface{}) {
-//	switch v[0] {
-//	case "sql":
-//		gl.Logger.WithFields(
-//			logrus.Fields{
-//				"module":  "gorm",
-//				"type":    "sql",
-//				"rows":    v[5],
-//				"src_ref": v[1],
-//				"values":  v[4],
-//			},
-//		).Debug(v[3])
-//	case "log":
-//		gl.Logger.WithFields(logrus.Fields{"module": "gorm", "type": "log"}).Print(v[2])
-//	}
-//}
-
 func NewScrutinyRepository(appConfig config.Interface, globalLogger logrus.FieldLogger) (DeviceRepo, error) {
 	backgroundContext := context.Background()
 
@@ -79,16 +58,12 @@ func NewScrutinyRepository(appConfig config.Interface, globalLogger logrus.Field
 		"busy_timeout": "30000",
 	})
 	database, err := gorm.Open(sqlite.Open(appConfig.GetString("web.database.location")+pragmaStr), &gorm.Config{
-		//TODO: figure out how to log database queries again.
-		//Logger: logger
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database! - %v", err)
 	}
 	globalLogger.Infof("Successfully connected to scrutiny sqlite db: %s\n", appConfig.GetString("web.database.location"))
-
-	//database.SetLogger()
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// InfluxDB setup

@@ -15,6 +15,7 @@ import { LoadingScreen } from '@/components/layout/LoadingScreen';
 import type { SmartModel } from '@/models/measurements/smart-model';
 import { MetricsStatusThreshold, type MetricsStatusThresholdValue } from '@/constants';
 import { muteDevice, unmuteDevice, setDeviceLabel } from '@/api/device';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DropdownMenu,
@@ -111,7 +112,7 @@ export function DeviceDetail() {
                 <DropdownMenuItem onClick={() => config && exportDeviceDetailToCSV(device, smart_results || [], metadata || {}, config)}>
                   Export as CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { if (config) exportDeviceDetailToPDF(device, smart_results || [], metadata || {}, config).catch(console.error); }}>
+                <DropdownMenuItem onClick={() => { if (config) exportDeviceDetailToPDF(device, smart_results || [], metadata || {}, config).catch(() => toast.error('Failed to export PDF')); }}>
                   Export as PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>

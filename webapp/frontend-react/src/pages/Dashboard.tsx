@@ -163,7 +163,7 @@ export function Dashboard() {
                 <DropdownMenuItem onClick={() => mergedSummaryData && config && exportToCSV(mergedSummaryData, config)}>
                   Export as CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { if (mergedSummaryData && config) exportToPDF(mergedSummaryData, config).catch(console.error); }}>
+                <DropdownMenuItem onClick={() => { if (mergedSummaryData && config) exportToPDF(mergedSummaryData, config).catch((e) => toast.error('Failed to export PDF')); }}>
                   Export as PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>
