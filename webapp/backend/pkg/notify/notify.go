@@ -2,6 +2,7 @@ package notify
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +22,6 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/thresholds"
 	"github.com/containrrr/shoutrrr"
 	shoutrrrTypes "github.com/containrrr/shoutrrr/pkg/types"
-	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -32,7 +32,7 @@ const NotifyFailureTypeBothFailure = NotifyFailureTypeSmartFailure //SmartFailur
 const NotifyFailureTypeScrutinyFailure = "ScrutinyFailure"
 
 // ShouldNotify check if the error Message should be filtered (level mismatch or filtered_attributes)
-func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs measurements.Smart, statusThreshold pkg.MetricsStatusThreshold, statusFilterAttributes pkg.MetricsStatusFilterAttributes, notifyLevel pkg.MetricsNotifyLevel, repeatNotifications bool, c *gin.Context, deviceRepo database.DeviceRepo) bool {
+func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs measurements.Smart, statusThreshold pkg.MetricsStatusThreshold, statusFilterAttributes pkg.MetricsStatusFilterAttributes, notifyLevel pkg.MetricsNotifyLevel, repeatNotifications bool, ctx context.Context, wwn string, deviceRepo database.DeviceRepo) bool {
 	// 1. check if the device is healthy
 	if device.DeviceStatus == pkg.DeviceStatusPassed {
 		return false
@@ -109,7 +109,7 @@ func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs me
 	var lastPoints []measurements.Smart
 	var err error
 	if !repeatNotifications {
-		lastPoints, err = deviceRepo.GetSmartAttributeHistory(c, c.Param("wwn"), database.DURATION_KEY_FOREVER, 1, 1, failingAttributes)
+		lastPoints, err = deviceRepo.GetSmartAttributeHistory(ctx, wwn, database.DURATION_KEY_FOREVER, 1, 1, failingAttributes)
 		if err != nil || len(lastPoints) < 1 {
 			logger.Warningln("Could not get the most recent data points from the database. This is expected to happen only if this is the very first submission of data for the device.")
 		}

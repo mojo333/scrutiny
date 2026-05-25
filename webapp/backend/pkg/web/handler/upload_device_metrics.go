@@ -80,6 +80,7 @@ func UploadDeviceMetrics(c *gin.Context) {
 		pkg.MetricsNotifyLevel(appConfig.GetInt(fmt.Sprintf("%s.metrics.notify_level", config.DB_USER_SETTINGS_SUBKEY))),
 		appConfig.GetBool(fmt.Sprintf("%s.metrics.repeat_notifications", config.DB_USER_SETTINGS_SUBKEY)),
 		c,
+		c.Param("wwn"),
 		deviceRepo,
 	) {
 		//send notifications
