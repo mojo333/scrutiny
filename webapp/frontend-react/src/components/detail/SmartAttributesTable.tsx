@@ -14,7 +14,6 @@ import Chart from 'react-apexcharts';
 import type { ApexOptions } from 'apexcharts';
 import type { DeviceModel } from '@/models/device-model';
 import type { SmartModel } from '@/models/measurements/smart-model';
-import type { SmartAttributeModel } from '@/models/measurements/smart-attribute-model';
 import type { AttributeMetadataModel } from '@/models/thresholds/attribute-metadata-model';
 import { Button } from '@/components/ui/button';
 import { Info, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp } from 'lucide-react';
