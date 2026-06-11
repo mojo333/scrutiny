@@ -469,4 +469,3 @@ func (sr *scrutinyRepository) Migrate(ctx context.Context) error {
 
 	return nil
 }
-
