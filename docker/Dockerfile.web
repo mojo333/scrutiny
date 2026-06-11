@@ -7,7 +7,7 @@
 FROM --platform=${BUILDPLATFORM} node:24-bookworm AS frontendbuild
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /go/src/github.com/analogj/scrutiny
-COPY --link webapp/frontend-react/package.json webapp/frontend-react/pnpm-lock.yaml ./webapp/frontend-react/
+COPY --link webapp/frontend-react/package.json webapp/frontend-react/pnpm-lock.yaml webapp/frontend-react/pnpm-workspace.yaml ./webapp/frontend-react/
 RUN cd webapp/frontend-react && pnpm install --frozen-lockfile
 COPY --link webapp/frontend-react ./webapp/frontend-react
 RUN cd webapp/frontend-react && pnpm run build
