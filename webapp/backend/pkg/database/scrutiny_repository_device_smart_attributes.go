@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -178,6 +179,45 @@ func (sr *scrutinyRepository) aggregateSmartAttributesQuery(wwn string, duration
 	return strings.Join(partialQueryStr, "\n")
 }
 
+// safeAttributeID allows only characters that legitimately appear in SMART
+// attribute identifiers (numeric ATA ids and snake_case NVMe/SCSI names), so
+// they can be safely interpolated into a Flux query.
+var safeAttributeID = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
+// buildAttributeFieldFilter returns a Flux filter line that restricts results to
+// the base metric fields plus the fields belonging to the requested attributes.
+// It returns an empty string when no (valid) attributes are requested, in which
+// case the caller applies no field filtering. Attribute IDs that fail validation
+// are skipped to avoid Flux injection.
+func buildAttributeFieldFilter(attributes []string) string {
+	if len(attributes) == 0 {
+		return ""
+	}
+
+	// Always keep the base metric fields so the datapoint can still be reconstructed.
+	predicates := []string{
+		`r["_field"] == "temp"`,
+		`r["_field"] == "power_on_hours"`,
+		`r["_field"] == "power_cycle_count"`,
+	}
+
+	validCount := 0
+	for _, attr := range attributes {
+		if !safeAttributeID.MatchString(attr) {
+			continue
+		}
+		// Attribute fields are stored as `attr.<id>.<subfield>`.
+		predicates = append(predicates, fmt.Sprintf(`r["_field"] =~ /^attr\.%s\./`, attr))
+		validCount++
+	}
+
+	if validCount == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf(`|> filter(fn: (r) => %s)`, strings.Join(predicates, " or "))
+}
+
 func (sr *scrutinyRepository) generateSmartAttributesSubquery(wwn string, durationKey string, selectEntries int, selectEntriesOffset int, attributes []string) string {
 	bucketName := sr.lookupBucketName(durationKey)
 	durationRange := sr.lookupDuration(durationKey)
@@ -187,6 +227,14 @@ func (sr *scrutinyRepository) generateSmartAttributesSubquery(wwn string, durati
 		fmt.Sprintf(`|> range(start: %s, stop: %s)`, durationRange[0], durationRange[1]),
 		`|> filter(fn: (r) => r["_measurement"] == "smart" )`,
 		fmt.Sprintf(`|> filter(fn: (r) => r["device_wwn"] == "%s" )`, wwn),
+	}
+
+	// If a set of attributes was requested, restrict the query to just those
+	// attributes' fields (plus the base metric fields needed for reconstruction)
+	// instead of pulling every attribute back. Attribute IDs are validated to
+	// contain only safe characters before being interpolated into the query.
+	if fieldFilter := buildAttributeFieldFilter(attributes); fieldFilter != "" {
+		partialQueryStr = append(partialQueryStr, fieldFilter)
 	}
 
 	partialQueryStr = append(partialQueryStr, `|> aggregateWindow(every: 1d, fn: last, createEmpty: false)`)

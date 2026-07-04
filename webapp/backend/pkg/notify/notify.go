@@ -122,7 +122,19 @@ func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs me
 			}
 			// This is checked again here to avoid repeating the entire for loop in the check above.
 			// Probably unnoticeably worse performance, but cleaner code.
-			if err != nil || len(lastPoints) < 1 || lastPoints[0].Attributes[attrId].GetTransformedValue() != smartAttrs.Attributes[attrId].GetTransformedValue() {
+			if err != nil || len(lastPoints) < 1 {
+				return true
+			}
+			// The attribute may be absent from the previously-stored datapoint (its
+			// value type is an interface, so a missing key yields a nil interface and
+			// calling a method on it would panic). Treat an absent previous value as
+			// "changed" so the notification still fires.
+			lastAttr, lastOk := lastPoints[0].Attributes[attrId]
+			currAttr, currOk := smartAttrs.Attributes[attrId]
+			if !lastOk || !currOk || lastAttr == nil || currAttr == nil {
+				return true
+			}
+			if lastAttr.GetTransformedValue() != currAttr.GetTransformedValue() {
 				return true
 			}
 		}
@@ -303,7 +315,10 @@ func (n *Notify) SendWebhookNotification(webhookUrl string) error {
 		return err
 	}
 
-	resp, err := http.Post(webhookUrl, "application/json", bytes.NewBuffer(requestBody))
+	// Use a bounded timeout so a slow or unresponsive webhook endpoint cannot
+	// hang the notification goroutine indefinitely.
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post(webhookUrl, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		n.Logger.Errorf("An error occurred while sending Webhook to %s: %v", webhookUrl, err)
 		return err

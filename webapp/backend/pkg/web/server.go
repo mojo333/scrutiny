@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/analogj/go-util/utils"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
@@ -99,5 +100,16 @@ func (ae *AppEngine) Start() error {
 
 	r := ae.Setup(ae.Logger)
 
-	return r.Run(fmt.Sprintf("%s:%s", ae.Config.GetString("web.listen.host"), ae.Config.GetString("web.listen.port")))
+	// Use an explicit http.Server with timeouts rather than gin's r.Run() so the
+	// service is not vulnerable to slowloris-style connection exhaustion.
+	srv := &http.Server{
+		Addr:              fmt.Sprintf("%s:%s", ae.Config.GetString("web.listen.host"), ae.Config.GetString("web.listen.port")),
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	return srv.ListenAndServe()
 }

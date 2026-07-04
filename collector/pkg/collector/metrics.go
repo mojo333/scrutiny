@@ -27,6 +27,9 @@ type MetricsCollector struct {
 }
 
 func CreateMetricsCollector(appConfig config.Interface, logger *logrus.Entry, apiEndpoint string) (MetricsCollector, error) {
+	//ensure the base endpoint always has a trailing slash (regardless of config-file/CLI/env source),
+	//otherwise relative url.Parse() drops any basepath (eg. http://host:8080/scrutiny).
+	apiEndpoint = strings.TrimSuffix(apiEndpoint, "/") + "/"
 	apiEndpointUrl, err := url.Parse(apiEndpoint)
 	if err != nil {
 		return MetricsCollector{}, err
@@ -126,7 +129,7 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 	mc.logger.Infof("Collecting smartctl results for %s\n", deviceName)
 
 	fullDeviceName := fmt.Sprintf("%s%s", detect.DevicePrefix(), deviceName)
-	args := strings.Split(mc.config.GetCommandMetricsSmartArgs(fullDeviceName), " ")
+	args := strings.Fields(mc.config.GetCommandMetricsSmartArgs(fullDeviceName))
 	//only include the device type if its a non-standard one. In some cases ata drives are detected as scsi in docker, and metadata is lost.
 	if len(deviceType) > 0 && deviceType != "scsi" && deviceType != "ata" {
 		args = append(args, "--device", deviceType)
@@ -140,7 +143,9 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 			// smartctl command exited with an error, we should still push the data to the API server
 			mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
 			mc.LogSmartctlExitCode(exitError.ExitCode())
-			_ = mc.Publish(deviceWWN, resultBytes)
+			if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
+				mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
+			}
 		} else {
 			mc.logger.Errorf("error while attempting to execute smartctl: %s\n", deviceName)
 			mc.logger.Errorf("ERROR MESSAGE: %v", err)
@@ -149,7 +154,9 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 		return
 	} else {
 		//successful run, pass the results directly to webapp backend for parsing and processing.
-		_ = mc.Publish(deviceWWN, resultBytes)
+		if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
+			mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
+		}
 	}
 }
 
@@ -165,6 +172,11 @@ func (mc *MetricsCollector) Publish(deviceWWN string, payload []byte) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		mc.logger.Errorf("An error occurred while publishing SMART data for device (%s): API returned HTTP %d", deviceWWN, resp.StatusCode)
+		return fmt.Errorf("publishing SMART data for device (%s) failed with HTTP %d", deviceWWN, resp.StatusCode)
+	}
 
 	return nil
 }

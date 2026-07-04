@@ -37,21 +37,29 @@ func (c *BaseCollector) postJson(url string, body interface{}, target interface{
 
 // http://www.linuxguide.it/command_line/linux-manpage/do.php?file=smartctl#sect7
 func (c *BaseCollector) LogSmartctlExitCode(exitCode int) {
+	//exit code is a bitmask; check each bit independently so all set conditions are reported.
 	if exitCode&0x01 != 0 {
 		c.logger.Errorln("smartctl could not parse commandline")
-	} else if exitCode&0x02 != 0 {
+	}
+	if exitCode&0x02 != 0 {
 		c.logger.Errorln("smartctl could not open device")
-	} else if exitCode&0x04 != 0 {
+	}
+	if exitCode&0x04 != 0 {
 		c.logger.Errorln("smartctl detected a checksum error")
-	} else if exitCode&0x08 != 0 {
+	}
+	if exitCode&0x08 != 0 {
 		c.logger.Errorln("smartctl detected a failing disk ")
-	} else if exitCode&0x10 != 0 {
+	}
+	if exitCode&0x10 != 0 {
 		c.logger.Errorln("smartctl detected a disk in pre-fail")
-	} else if exitCode&0x20 != 0 {
+	}
+	if exitCode&0x20 != 0 {
 		c.logger.Errorln("smartctl detected a disk close to failure")
-	} else if exitCode&0x40 != 0 {
+	}
+	if exitCode&0x40 != 0 {
 		c.logger.Errorln("smartctl detected a error log with errors")
-	} else if exitCode&0x80 != 0 {
+	}
+	if exitCode&0x80 != 0 {
 		c.logger.Errorln("smartctl detected a self test log with errors")
 	}
 }

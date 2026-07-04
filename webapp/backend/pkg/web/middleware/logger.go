@@ -27,6 +27,13 @@ import (
 
 var timeFormat = "02/Jan/2006:15:04:05 -0700"
 
+// maxRequestBodyBytes caps how much of a request body is buffered in memory,
+// protecting the service from unbounded memory allocation on large POSTs.
+const maxRequestBodyBytes = 10 << 20 // 10 MiB
+
+// maxLoggedBodyBytes caps how much of the request body is retained for debug logging.
+const maxLoggedBodyBytes = 64 << 10 // 64 KiB
+
 // Logger is the logrus logger handler
 func LoggerMiddleware(logger *logrus.Entry) gin.HandlerFunc {
 
@@ -40,11 +47,18 @@ func LoggerMiddleware(logger *logrus.Entry) gin.HandlerFunc {
 		//clone the request body reader.
 		var reqBody string
 		if c.Request.Body != nil {
+			// Bound the amount of body we will read into memory. MaxBytesReader
+			// caps the total request body size regardless of Content-Length.
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBodyBytes)
 			buf, _ := io.ReadAll(c.Request.Body)
-			reqBodyReader1 := io.NopCloser(bytes.NewBuffer(buf))
-			reqBodyReader2 := io.NopCloser(bytes.NewBuffer(buf)) //We have to create a new Buffer, because reqBodyReader1 will be read.
+			reqBodyReader2 := io.NopCloser(bytes.NewBuffer(buf)) //We have to create a new Buffer, because the original body is consumed.
 			c.Request.Body = reqBodyReader2
-			reqBody = readBody(reqBodyReader1)
+			// Only retain a bounded prefix of the body for debug logging.
+			if len(buf) > maxLoggedBodyBytes {
+				reqBody = string(buf[:maxLoggedBodyBytes])
+			} else {
+				reqBody = string(buf)
+			}
 		}
 
 		// other handler can change c.Path so:

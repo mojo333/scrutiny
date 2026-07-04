@@ -4,6 +4,23 @@ import type { SmartModel } from '@/models/measurements/smart-model';
 import type { AttributeMetadataModel } from '@/models/thresholds/attribute-metadata-model';
 import type { AppConfig } from '@/api/settings';
 import { deviceTitleWithFallback } from './device-title';
+import { formatTemperature } from './temperature';
+import { formatFileSize } from './file-size';
+
+/**
+ * Escape a value for safe inclusion in a CSV cell.
+ * - Doubles embedded double-quotes.
+ * - Guards against spreadsheet formula/command injection by prefixing a single
+ *   quote when the cell begins with = + - @ (or tab/CR).
+ */
+function csvCell(value: unknown): string {
+  let str = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  str = str.replace(/"/g, '""');
+  return `"${str}"`;
+}
 
 export function exportToCSV(
   deviceSummaries: Record<string, DeviceSummaryModel>,
@@ -15,10 +32,12 @@ export function exportToCSV(
   // Prepare CSV rows
   const rows = Object.entries(deviceSummaries).map(([_wwn, deviceSummary]) => {
     const deviceName = deviceTitleWithFallback(deviceSummary.device, config?.dashboard_display || 'name');
-    const temp = deviceSummary.device.device_status === 0 && deviceSummary.smart?.temp
-      ? `${deviceSummary.smart.temp}${config?.temperature_unit === 'fahrenheit' ? '°F' : '°C'}`
+    const temp = deviceSummary.smart?.collector_date && deviceSummary.smart?.temp !== undefined
+      ? formatTemperature(deviceSummary.smart.temp, config?.temperature_unit || 'celsius', true)
       : '--';
-    const capacity = deviceSummary.device.capacity ? `${(deviceSummary.device.capacity / 1000000000).toFixed(1)} GB` : '--';
+    const capacity = deviceSummary.device.capacity
+      ? formatFileSize(deviceSummary.device.capacity, config?.file_size_si_units || false)
+      : '--';
     const poweredOn = deviceSummary.smart?.power_on_hours
       ? `${Math.floor(deviceSummary.smart.power_on_hours / 24)} days`
       : '--';
@@ -38,7 +57,7 @@ export function exportToCSV(
   // Combine headers and rows
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ...rows.map(row => row.map(csvCell).join(','))
   ].join('\n');
 
   // Create download link
@@ -86,11 +105,11 @@ export async function exportToPDF(
 
     const deviceName = deviceTitleWithFallback(deviceSummary.device, config?.dashboard_display || 'name');
     const status = deviceSummary.device.device_status === 0 ? 'Passed' : 'Failed';
-    const temp = deviceSummary.smart?.temp
-      ? `${deviceSummary.smart.temp}${config?.temperature_unit === 'fahrenheit' ? '°F' : '°C'}`
+    const temp = deviceSummary.smart?.collector_date && deviceSummary.smart?.temp !== undefined
+      ? formatTemperature(deviceSummary.smart.temp, config?.temperature_unit || 'celsius', true)
       : '--';
     const capacity = deviceSummary.device.capacity
-      ? `${(deviceSummary.device.capacity / 1000000000).toFixed(1)} GB`
+      ? formatFileSize(deviceSummary.device.capacity, config?.file_size_si_units || false)
       : '--';
     const poweredOn = deviceSummary.smart?.power_on_hours
       ? `${Math.floor(deviceSummary.smart.power_on_hours / 24)} days`
@@ -167,7 +186,7 @@ export function exportDeviceDetailToCSV(
     `Exported: ${new Date().toLocaleString()}`,
     '',
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ...rows.map(row => row.map(csvCell).join(','))
   ].join('\n');
 
   // Create download link
@@ -209,7 +228,7 @@ export async function exportDeviceDetailToPDF(
   doc.text(`Model: ${device.model_name || '--'}`, 14, 36);
   doc.text(`Serial: ${device.serial_number || '--'}`, 14, 42);
   doc.text(`Manufacturer: ${device.manufacturer || '--'}`, 14, 48);
-  doc.text(`Capacity: ${device.capacity ? `${(device.capacity / 1000000000).toFixed(1)} GB` : '--'}`, 14, 54);
+  doc.text(`Capacity: ${device.capacity ? formatFileSize(device.capacity, config?.file_size_si_units || false) : '--'}`, 14, 54);
   doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 60);
 
   // Add SMART attributes header

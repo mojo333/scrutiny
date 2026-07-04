@@ -32,7 +32,7 @@ func UploadDeviceMetrics(c *gin.Context) {
 	err := c.BindJSON(&collectorSmartData)
 	if err != nil {
 		logger.Errorln("Cannot parse SMART data", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
 

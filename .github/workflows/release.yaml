@@ -12,6 +12,12 @@ on:
         required: true
         default: 'webapp/backend/pkg/version/version.go'
 
+# Least-privilege default for the automatic GITHUB_TOKEN. The push/publish steps
+# authenticate with the SCRUTINY_GITHUB_TOKEN PAT (see env blocks below), so no job
+# needs write access via the default token.
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Create Release Commit
@@ -43,8 +49,12 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # Do not persist the automatic GITHUB_TOKEN into .git/config, otherwise it
+          # leaks into the "Upload workspace" artifact (which includes hidden files).
+          persist-credentials: false
       - name: Bump version
         id: bump_version
+        # SECURITY: pin to a commit SHA (mutable @master receives a push-scoped PAT)
         uses: packagrio/action-bumpr-go@master
         with:
           version_bump_type: ${{ github.event.inputs.version_bump_type }}
@@ -56,6 +66,7 @@ jobs:
           make binary-clean binary-test-coverage
       - name: Commit Changes Locally
         id: commit
+        # SECURITY: pin to a commit SHA (mutable @master receives a push-scoped PAT)
         uses: packagrio/action-releasr-go@master
         env:
           GITHUB_TOKEN: ${{ secrets.SCRUTINY_GITHUB_TOKEN }} # Leave this line unchanged
@@ -66,7 +77,11 @@ jobs:
         with:
           name: workspace
           include-hidden-files: true
-          path: ${{ github.workspace }}/**/*
+          # Defense in depth: never ship .git/config (may hold credentials) in the
+          # artifact. The commit objects/refs remain so downstream publish still works.
+          path: |
+            ${{ github.workspace }}/**/*
+            !${{ github.workspace }}/.git/config
           retention-days: 1
 
   build:
@@ -105,11 +120,11 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: scrutiny-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ case(matrix.cfg.goarm != '', format('-{0}', matrix.cfg.goarm), '') }}.zip
+          name: scrutiny-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ matrix.cfg.goarm != '' && format('-{0}', matrix.cfg.goarm) || '' }}.zip
           path: |
-            scrutiny-web-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ case(matrix.cfg.goarm != '', format('-{0}', matrix.cfg.goarm), '') }}${{ case(matrix.cfg.goos == 'windows', '.exe', '') }}
-            scrutiny-collector-metrics-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ case(matrix.cfg.goarm != '', format('-{0}', matrix.cfg.goarm), '') }}${{ case(matrix.cfg.goos == 'windows', '.exe', '') }}
-            scrutiny-collector-zfs-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ case(matrix.cfg.goarm != '', format('-{0}', matrix.cfg.goarm), '') }}${{ case(matrix.cfg.goos == 'windows', '.exe', '') }}
+            scrutiny-web-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ matrix.cfg.goarm != '' && format('-{0}', matrix.cfg.goarm) || '' }}${{ matrix.cfg.goos == 'windows' && '.exe' || '' }}
+            scrutiny-collector-metrics-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ matrix.cfg.goarm != '' && format('-{0}', matrix.cfg.goarm) || '' }}${{ matrix.cfg.goos == 'windows' && '.exe' || '' }}
+            scrutiny-collector-zfs-${{ matrix.cfg.goos }}-${{ matrix.cfg.goarch }}${{ matrix.cfg.goarm != '' && format('-{0}', matrix.cfg.goarm) || '' }}${{ matrix.cfg.goos == 'windows' && '.exe' || '' }}
   
   build_frontend:
     name: Build Frontend
@@ -164,6 +179,7 @@ jobs:
           ls -alt
       - name: Publish Release & Assets
         id: publish
+        # SECURITY: pin to a commit SHA (mutable @master receives a push-scoped PAT)
         uses: packagrio/action-publishr-go@master
         env:
           # This is necessary in order to push a commit to the repo

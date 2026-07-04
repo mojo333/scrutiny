@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
@@ -126,7 +127,7 @@ OPTIONS:
 						return err
 					}
 
-					settingsData, err := json.Marshal(config.AllSettings())
+					settingsData, err := json.Marshal(redactSensitiveSettings(config.AllSettings()))
 					webLogger.Debug(string(settingsData), err)
 
 					webServer := web.AppEngine{Config: config, Logger: webLogger}
@@ -185,4 +186,24 @@ func CreateLogger(appConfig config.Interface) (*logrus.Entry, *os.File, error) {
 		logger.Logger.SetOutput(io.MultiWriter(os.Stderr, logFile))
 	}
 	return logger, logFile, nil
+}
+
+// redactSensitiveSettings walks a (possibly nested) settings map and replaces the
+// values of keys that look like secrets (password/token/secret) with "***REDACTED***"
+// so that dumping the config at debug level does not leak credentials into logs.
+func redactSensitiveSettings(settings map[string]interface{}) map[string]interface{} {
+	redacted := make(map[string]interface{}, len(settings))
+	for key, value := range settings {
+		lowerKey := strings.ToLower(key)
+		if strings.Contains(lowerKey, "password") || strings.Contains(lowerKey, "token") || strings.Contains(lowerKey, "secret") {
+			redacted[key] = "***REDACTED***"
+			continue
+		}
+		if nested, ok := value.(map[string]interface{}); ok {
+			redacted[key] = redactSensitiveSettings(nested)
+			continue
+		}
+		redacted[key] = value
+	}
+	return redacted
 }

@@ -3,10 +3,12 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/measurements"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -14,42 +16,56 @@ import (
 // ZFS Pool
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// RegisterZFSPool inserts or updates a ZFS pool in the database
-func (sr *scrutinyRepository) RegisterZFSPool(ctx context.Context, pool models.ZFSPool) error {
-	// First, handle the pool itself (upsert)
-	if err := sr.gormClient.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "guid"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"name", "host_id", "status", "health",
-			"size", "allocated", "free", "fragmentation", "capacity_percent",
-			"ashift",
-			"scrub_state", "scrub_start_time", "scrub_end_time",
-			"scrub_scanned_bytes", "scrub_issued_bytes", "scrub_total_bytes",
-			"scrub_errors_count", "scrub_percent_complete",
-			"total_read_errors", "total_write_errors", "total_checksum_errors",
-		}),
-	}).Create(&pool).Error; err != nil {
-		return err
-	}
-
-	// Handle vdevs - delete existing and recreate
-	if len(pool.Vdevs) > 0 {
-		// Delete existing vdevs for this pool
-		if err := sr.gormClient.WithContext(ctx).Where("pool_guid = ?", pool.GUID).Delete(&models.ZFSVdev{}).Error; err != nil {
-			return err
-		}
-
-		// Insert new vdevs with hierarchy
-		if err := sr.insertVdevsRecursive(ctx, pool.GUID, pool.Vdevs, nil); err != nil {
-			return err
-		}
-	}
-
-	return nil
+// escapeFluxString escapes a value for safe interpolation inside a Flux/InfluxDB
+// double-quoted string literal. GUIDs are already validated at the handler layer
+// (digits only); this is defense-in-depth in case an unvalidated caller is added.
+func escapeFluxString(s string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+	return replacer.Replace(s)
 }
 
-// insertVdevsRecursive inserts vdevs and their children recursively
-func (sr *scrutinyRepository) insertVdevsRecursive(ctx context.Context, poolGUID string, vdevs []models.ZFSVdev, parentID *uint) error {
+// RegisterZFSPool inserts or updates a ZFS pool in the database.
+// The pool upsert and the vdev delete/recreate are wrapped in a single
+// transaction so a partial failure cannot leave the pool with its vdev
+// topology deleted but not restored.
+func (sr *scrutinyRepository) RegisterZFSPool(ctx context.Context, pool models.ZFSPool) error {
+	return sr.gormClient.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// First, handle the pool itself (upsert)
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "guid"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"name", "host_id", "status", "health",
+				"size", "allocated", "free", "fragmentation", "capacity_percent",
+				"ashift",
+				"scrub_state", "scrub_start_time", "scrub_end_time",
+				"scrub_scanned_bytes", "scrub_issued_bytes", "scrub_total_bytes",
+				"scrub_errors_count", "scrub_percent_complete",
+				"total_read_errors", "total_write_errors", "total_checksum_errors",
+			}),
+		}).Create(&pool).Error; err != nil {
+			return err
+		}
+
+		// Handle vdevs - delete existing and recreate
+		if len(pool.Vdevs) > 0 {
+			// Delete existing vdevs for this pool
+			if err := tx.Where("pool_guid = ?", pool.GUID).Delete(&models.ZFSVdev{}).Error; err != nil {
+				return err
+			}
+
+			// Insert new vdevs with hierarchy
+			if err := sr.insertVdevsRecursive(tx, pool.GUID, pool.Vdevs, nil); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// insertVdevsRecursive inserts vdevs and their children recursively using the
+// provided transaction/DB handle.
+func (sr *scrutinyRepository) insertVdevsRecursive(tx *gorm.DB, poolGUID string, vdevs []models.ZFSVdev, parentID *uint) error {
 	for _, vdev := range vdevs {
 		vdev.PoolGUID = poolGUID
 		vdev.ParentID = parentID
@@ -58,13 +74,13 @@ func (sr *scrutinyRepository) insertVdevsRecursive(ctx context.Context, poolGUID
 		children := vdev.Children
 		vdev.Children = nil // Don't try to insert children via association
 
-		if err := sr.gormClient.WithContext(ctx).Create(&vdev).Error; err != nil {
+		if err := tx.Create(&vdev).Error; err != nil {
 			return err
 		}
 
 		// Recursively insert children
 		if len(children) > 0 {
-			if err := sr.insertVdevsRecursive(ctx, poolGUID, children, &vdev.ID); err != nil {
+			if err := sr.insertVdevsRecursive(tx, poolGUID, children, &vdev.ID); err != nil {
 				return err
 			}
 		}
@@ -127,7 +143,7 @@ func (sr *scrutinyRepository) loadVdevChildren(ctx context.Context, vdev *models
 func (sr *scrutinyRepository) UpdateZFSPoolArchived(ctx context.Context, guid string, archived bool) error {
 	var pool models.ZFSPool
 	if err := sr.gormClient.WithContext(ctx).Where("guid = ?", guid).First(&pool).Error; err != nil {
-		return fmt.Errorf("could not get ZFS pool from DB: %v", err)
+		return fmt.Errorf("could not get ZFS pool from DB: %w", err)
 	}
 
 	return sr.gormClient.Model(&pool).Where("guid = ?", guid).Update("archived", archived).Error
@@ -137,7 +153,7 @@ func (sr *scrutinyRepository) UpdateZFSPoolArchived(ctx context.Context, guid st
 func (sr *scrutinyRepository) UpdateZFSPoolMuted(ctx context.Context, guid string, muted bool) error {
 	var pool models.ZFSPool
 	if err := sr.gormClient.WithContext(ctx).Where("guid = ?", guid).First(&pool).Error; err != nil {
-		return fmt.Errorf("could not get ZFS pool from DB: %v", err)
+		return fmt.Errorf("could not get ZFS pool from DB: %w", err)
 	}
 
 	return sr.gormClient.Model(&pool).Where("guid = ?", guid).Update("muted", muted).Error
@@ -147,7 +163,7 @@ func (sr *scrutinyRepository) UpdateZFSPoolMuted(ctx context.Context, guid strin
 func (sr *scrutinyRepository) UpdateZFSPoolLabel(ctx context.Context, guid string, label string) error {
 	var pool models.ZFSPool
 	if err := sr.gormClient.WithContext(ctx).Where("guid = ?", guid).First(&pool).Error; err != nil {
-		return fmt.Errorf("could not get ZFS pool from DB: %v", err)
+		return fmt.Errorf("could not get ZFS pool from DB: %w", err)
 	}
 
 	return sr.gormClient.Model(&pool).Where("guid = ?", guid).Update("label", label).Error
@@ -181,7 +197,7 @@ func (sr *scrutinyRepository) DeleteZFSPool(ctx context.Context, guid string) er
 			bucket,
 			time.Now().AddDate(-10, 0, 0),
 			time.Now(),
-			fmt.Sprintf(`pool_guid="%s"`, guid),
+			fmt.Sprintf(`pool_guid="%s"`, escapeFluxString(guid)),
 		); err != nil {
 			return err
 		}
@@ -271,7 +287,7 @@ func (sr *scrutinyRepository) GetZFSPoolMetricsHistory(ctx context.Context, guid
 		|> aggregateWindow(every: 1h, fn: last, createEmpty: false)
 		|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
 		|> sort(columns: ["_time"], desc: false)
-	`, bucketName, duration[0], duration[1], guid)
+	`, bucketName, duration[0], duration[1], escapeFluxString(guid))
 
 	result, err := sr.influxQueryApi.Query(ctx, queryStr)
 	if err != nil {

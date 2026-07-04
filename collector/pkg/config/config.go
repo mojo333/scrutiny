@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -119,7 +120,7 @@ func (c *configuration) ValidateConfig() error {
 
 	errorStrings := []string{}
 	for configKey, commandArgString := range commandArgStrings {
-		args := strings.Split(commandArgString, " ")
+		args := strings.Fields(commandArgString)
 		//ensure that the args string contains `--json` or `-j` flag
 		containsJsonFlag := false
 		containsDeviceFlag := false
@@ -210,4 +211,39 @@ func (c *configuration) IsAllowlistedDevice(deviceName string) bool {
 	}
 
 	return false
+}
+
+// RedactSensitiveSettings walks a (possibly nested) settings map and redacts values
+// that may contain credentials before they are dumped to logs. Keys that look like
+// secrets (password/token/secret) are replaced entirely, and any string value that
+// parses as a URL containing embedded userinfo (e.g. http://user:pass@host) has that
+// userinfo stripped.
+func RedactSensitiveSettings(settings map[string]interface{}) map[string]interface{} {
+	redacted := make(map[string]interface{}, len(settings))
+	for key, value := range settings {
+		lowerKey := strings.ToLower(key)
+		if strings.Contains(lowerKey, "password") || strings.Contains(lowerKey, "token") || strings.Contains(lowerKey, "secret") {
+			redacted[key] = "***REDACTED***"
+			continue
+		}
+		switch typed := value.(type) {
+		case map[string]interface{}:
+			redacted[key] = RedactSensitiveSettings(typed)
+		case string:
+			redacted[key] = redactURLUserinfo(typed)
+		default:
+			redacted[key] = value
+		}
+	}
+	return redacted
+}
+
+// redactURLUserinfo removes any embedded username/password from a URL string.
+func redactURLUserinfo(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.User == nil {
+		return value
+	}
+	parsed.User = url.User("***REDACTED***")
+	return parsed.String()
 }

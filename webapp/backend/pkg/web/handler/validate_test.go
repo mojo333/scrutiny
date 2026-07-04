@@ -31,3 +31,32 @@ func TestValidateWWN(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateGUID(t *testing.T) {
+	tests := []struct {
+		name    string
+		guid    string
+		wantErr bool
+	}{
+		{"decimal guid", "12345678901234567890", false},
+		{"short decimal", "42", false},
+		{"single digit", "0", false},
+		{"empty string", "", true},
+		{"too long", "123456789012345678901", true},
+		{"flux injection quote", `1" or pool_guid!="`, true},
+		{"delete predicate injection", `1" or pool_guid="`, true},
+		{"pipe operator", "1|>yield()", true},
+		{"spaces", "1 2", true},
+		{"hex not allowed", "0x1234", true},
+		{"letters", "abc", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateGUID(tt.guid)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateGUID(%q) error = %v, wantErr %v", tt.guid, err, tt.wantErr)
+			}
+		})
+	}
+}

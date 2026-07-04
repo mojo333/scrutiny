@@ -20,7 +20,7 @@ func RegisterZFSPools(c *gin.Context) {
 	err := c.BindJSON(&poolWrapper)
 	if err != nil {
 		logger.Errorln("Cannot parse ZFS pools", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
 

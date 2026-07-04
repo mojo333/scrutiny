@@ -78,7 +78,9 @@ interface ExpandedAttributeRowProps {
 export function ExpandedAttributeRow({ row, columnsLength, isAta }: ExpandedAttributeRowProps) {
   const historyData = buildAttributeHistory(row.smartHistory, row.attribute_id, row.metadata, isAta);
 
-  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // Match the in-app theme applied by ThemeProvider (adds 'dark'/'light' to <html>)
+  // rather than the OS-level color-scheme preference.
+  const isDark = document.documentElement.classList.contains('dark');
 
   const chartOptions: ApexOptions = {
     chart: {

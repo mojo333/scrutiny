@@ -4,6 +4,8 @@
 # So when the container starts up, we will do a dump of the runtime environment into a .env file that we
 # will then source into the crontab file (/etc/cron.d/scrutiny-zfs)
 (set -o posix; export -p) > /env.sh
+# Restrict to root only — /env.sh may contain secrets (e.g. tokens) from the environment
+chmod 600 /env.sh
 
 # adding ability to customize the cron schedule.
 COLLECTOR_ZFS_CRON_SCHEDULE=${COLLECTOR_ZFS_CRON_SCHEDULE:-"*/15 * * * *"}

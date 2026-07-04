@@ -20,7 +20,7 @@ func RegisterDevices(c *gin.Context) {
 	err := c.BindJSON(&collectorDeviceWrapper)
 	if err != nil {
 		logger.Errorln("Cannot parse detected devices", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
 

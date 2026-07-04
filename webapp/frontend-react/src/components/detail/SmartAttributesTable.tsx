@@ -16,6 +16,7 @@ import type { DeviceModel } from '@/models/device-model';
 import type { SmartModel } from '@/models/measurements/smart-model';
 import type { AttributeMetadataModel } from '@/models/thresholds/attribute-metadata-model';
 import { Button } from '@/components/ui/button';
+import { AttributeStatus } from '@/constants';
 import { Info, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp } from 'lucide-react';
 import {
   ExpandedAttributeRow,
@@ -63,7 +64,7 @@ export function SmartAttributesTable({
       const attr = attrs[attrId];
       const attrMeta = getMetadata(attr.attribute_id);
 
-      if (!onlyCritical || (onlyCritical && attrMeta?.critical) || attr.value < attr.thresh) {
+      if (!onlyCritical || attrMeta?.critical || attr.status !== AttributeStatus.Passed) {
         result.push({
           ...attr,
           metadata: attrMeta,
@@ -361,7 +362,7 @@ export function SmartAttributesTable({
           </thead>
           <tbody>
             {table.getRowModel().rows.map(row => {
-              const isCritical = row.original.metadata?.critical || row.original.value < row.original.thresh;
+              const isCritical = row.original.metadata?.critical || row.original.status !== AttributeStatus.Passed;
               return (
                 <React.Fragment key={row.id}>
                   <tr className={isCritical ? 'bg-gray-100 dark:bg-cool-gray-800' : 'bg-white dark:bg-cool-gray-900'}>

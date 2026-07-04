@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/analogj/scrutiny/collector/pkg/collector"
-	"github.com/analogj/scrutiny/collector/pkg/config"
+	configPkg "github.com/analogj/scrutiny/collector/pkg/config"
 	"github.com/analogj/scrutiny/collector/pkg/errors"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/version"
 	"github.com/sirupsen/logrus"
@@ -25,7 +25,7 @@ var goarch string
 
 func main() {
 
-	config, err := config.Create()
+	config, err := configPkg.Create()
 	if err != nil {
 		fmt.Printf("FATAL: %+v\n", err)
 		os.Exit(1)
@@ -136,7 +136,7 @@ OPTIONS:
 						return err
 					}
 
-					settingsData, err := json.MarshalIndent(config.AllSettings(), "", "\t")
+					settingsData, err := json.MarshalIndent(configPkg.RedactSensitiveSettings(config.AllSettings()), "", "\t")
 					collectorLogger.Debug(string(settingsData), err)
 					metricCollector, err := collector.CreateMetricsCollector(
 						config,
@@ -192,7 +192,7 @@ OPTIONS:
 	}
 }
 
-func CreateLogger(appConfig config.Interface) (*logrus.Entry, *os.File, error) {
+func CreateLogger(appConfig configPkg.Interface) (*logrus.Entry, *os.File, error) {
 	logger := logrus.WithFields(logrus.Fields{
 		"type": "metrics",
 	})
@@ -206,7 +206,7 @@ func CreateLogger(appConfig config.Interface) (*logrus.Entry, *os.File, error) {
 	var logFile *os.File
 	var err error
 	if appConfig.IsSet("log.file") && len(appConfig.GetString("log.file")) > 0 {
-		logFile, err = os.OpenFile(appConfig.GetString("log.file"), os.O_CREATE|os.O_WRONLY, 0644)
+		logFile, err = os.OpenFile(appConfig.GetString("log.file"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			logger.Logger.Errorf("Failed to open log file %s for output: %s", appConfig.GetString("log.file"), err)
 			return nil, logFile, err

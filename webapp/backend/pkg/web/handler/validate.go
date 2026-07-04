@@ -19,3 +19,16 @@ func ValidateWWN(wwn string) error {
 	}
 	return nil
 }
+
+// validGUID matches a ZFS pool GUID, which is an unsigned 64-bit decimal integer
+// (as emitted by `zpool list -o guid`). Restricting to digits prevents injection
+// into the Flux queries and InfluxDB delete predicates that interpolate the GUID.
+var validGUID = regexp.MustCompile(`^[0-9]{1,20}$`)
+
+// ValidateGUID checks that a ZFS pool GUID parameter is a decimal integer string.
+func ValidateGUID(guid string) error {
+	if !validGUID.MatchString(guid) {
+		return fmt.Errorf("invalid pool GUID format: %q", guid)
+	}
+	return nil
+}

@@ -29,7 +29,7 @@ type Detect struct {
 // models.Device returned from this function only contain the minimum data for smartctl to execute: device type and device name (device file).
 func (d *Detect) SmartctlScan() ([]models.Device, error) {
 	//we use smartctl to detect all the drives available.
-	args := strings.Split(d.Config.GetString("commands.metrics_scan_args"), " ")
+	args := strings.Fields(d.Config.GetString("commands.metrics_scan_args"))
 	detectedDeviceConnJson, err := d.Shell.Command(d.Logger, d.Config.GetString("commands.metrics_smartctl_bin"), args, "", os.Environ())
 	if err != nil {
 		d.Logger.Errorf("Error scanning for devices: %v", err)
@@ -54,7 +54,7 @@ func (d *Detect) SmartctlScan() ([]models.Device, error) {
 // - WWN from smartctl only provided for ATA protocol drives, NVMe and SCSI drives do not include WWN.
 func (d *Detect) SmartCtlInfo(device *models.Device) error {
 	fullDeviceName := fmt.Sprintf("%s%s", DevicePrefix(), device.DeviceName)
-	args := strings.Split(d.Config.GetCommandMetricsInfoArgs(fullDeviceName), " ")
+	args := strings.Fields(d.Config.GetCommandMetricsInfoArgs(fullDeviceName))
 	//only include the device type if its a non-standard one. In some cases ata drives are detected as scsi in docker, and metadata is lost.
 	if len(device.DeviceType) > 0 && device.DeviceType != "scsi" && device.DeviceType != "ata" {
 		args = append(args, "--device", device.DeviceType)
@@ -122,7 +122,8 @@ func (d *Detect) TransformDetectedDevices(detectedDeviceConns models.Scan) []mod
 
 	for _, scannedDevice := range detectedDeviceConns.Devices {
 
-		deviceFile := strings.ToLower(scannedDevice.Name)
+		//device paths are case-sensitive on Linux (eg. /dev/disk/by-id/ata-WDC_...); do not lowercase them.
+		deviceFile := scannedDevice.Name
 
 		// If the user has defined a device allow list, and this device isnt there, then ignore it
 		if !d.Config.IsAllowlistedDevice(deviceFile) {
@@ -147,7 +148,8 @@ func (d *Detect) TransformDetectedDevices(detectedDeviceConns models.Scan) []mod
 	//now tha we've "grouped" all the devices, lets override any groups specified in the config file.
 
 	for _, overrideDevice := range d.Config.GetDeviceOverrides() {
-		overrideDeviceFile := strings.ToLower(overrideDevice.Device)
+		//device paths are case-sensitive on Linux; preserve the configured path as-is.
+		overrideDeviceFile := overrideDevice.Device
 
 		if overrideDevice.Ignore {
 			// this device file should be deleted if it exists

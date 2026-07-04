@@ -17,7 +17,7 @@ func SaveSettings(c *gin.Context) {
 	err := c.BindJSON(&settings)
 	if err != nil {
 		logger.Errorln("Cannot parse updated settings", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
 
