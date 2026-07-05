@@ -1,12 +1,25 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
+
+// respondZFSPoolActionError writes a 404 when the pool does not exist and a 500
+// otherwise, so callers can distinguish "not found" from a real server error.
+func respondZFSPoolActionError(c *gin.Context, logger *logrus.Entry, err error, action string) {
+	logger.Errorln("An error occurred while "+action+" ZFS pool", err)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Pool not found"})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+}
 
 // ArchiveZFSPool archives a ZFS pool (hides it from the dashboard)
 func ArchiveZFSPool(c *gin.Context) {
@@ -14,11 +27,13 @@ func ArchiveZFSPool(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	err := deviceRepo.UpdateZFSPoolArchived(c, guid, true)
 	if err != nil {
-		logger.Errorln("An error occurred while archiving ZFS pool", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		respondZFSPoolActionError(c, logger, err, "archiving")
 		return
 	}
 
@@ -31,11 +46,13 @@ func UnarchiveZFSPool(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	err := deviceRepo.UpdateZFSPoolArchived(c, guid, false)
 	if err != nil {
-		logger.Errorln("An error occurred while unarchiving ZFS pool", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		respondZFSPoolActionError(c, logger, err, "unarchiving")
 		return
 	}
 
@@ -48,11 +65,13 @@ func MuteZFSPool(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	err := deviceRepo.UpdateZFSPoolMuted(c, guid, true)
 	if err != nil {
-		logger.Errorln("An error occurred while muting ZFS pool", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		respondZFSPoolActionError(c, logger, err, "muting")
 		return
 	}
 
@@ -65,11 +84,13 @@ func UnmuteZFSPool(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	err := deviceRepo.UpdateZFSPoolMuted(c, guid, false)
 	if err != nil {
-		logger.Errorln("An error occurred while unmuting ZFS pool", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		respondZFSPoolActionError(c, logger, err, "unmuting")
 		return
 	}
 
@@ -82,6 +103,9 @@ func UpdateZFSPoolLabel(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	var payload struct {
 		Label string `json:"label"`
@@ -92,10 +116,15 @@ func UpdateZFSPoolLabel(c *gin.Context) {
 		return
 	}
 
+	// Bound the label length to avoid unbounded storage / rendering issues.
+	if len(payload.Label) > 255 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Label too long (max 255 characters)"})
+		return
+	}
+
 	err := deviceRepo.UpdateZFSPoolLabel(c, guid, payload.Label)
 	if err != nil {
-		logger.Errorln("An error occurred while updating ZFS pool label", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		respondZFSPoolActionError(c, logger, err, "updating label for")
 		return
 	}
 
@@ -108,11 +137,13 @@ func DeleteZFSPool(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	err := deviceRepo.DeleteZFSPool(c, guid)
 	if err != nil {
-		logger.Errorln("An error occurred while deleting ZFS pool", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		respondZFSPoolActionError(c, logger, err, "deleting")
 		return
 	}
 

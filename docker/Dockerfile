@@ -85,7 +85,9 @@ RUN chmod 0644 /etc/cron.d/scrutiny && \
     rm -f /etc/cron.daily/* && \
     mkdir -p /opt/scrutiny/web && \
     mkdir -p /opt/scrutiny/config && \
-    chmod -R ugo+rwx /opt/scrutiny/config && \
+    # Config holds the auto-generated InfluxDB token; keep it out of world/other perms.
+    # This image runs its services as root, so owner (root) rwx is sufficient.
+    chmod -R u+rwX,go-rwx /opt/scrutiny/config && \
     chmod +x /etc/cont-init.d/* && \
     chmod +x /etc/services.d/*/run && \
     chmod +x /etc/services.d/*/finish

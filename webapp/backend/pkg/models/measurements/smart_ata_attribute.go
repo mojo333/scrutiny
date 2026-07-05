@@ -158,9 +158,11 @@ func (sa *SmartAtaAttribute) ValidateThreshold(smartMetadata thresholds.AtaAttri
 
 	for _, obsThresh := range smartMetadata.ObservedThresholds {
 
-		//check if "value" is in this bucket
-		if ((obsThresh.Low == obsThresh.High) && value == obsThresh.Low) ||
-			(obsThresh.Low < value && value <= obsThresh.High) {
+		//check if "value" is in this bucket. Low is inclusive so that a value equal
+		//to the lowest bucket's Low is not dropped; buckets are ordered and we return
+		//on the first match, so values on a shared boundary map to the earlier bucket
+		//(identical to the previous behaviour for all interior values).
+		if obsThresh.Low <= value && value <= obsThresh.High {
 			sa.FailureRate = obsThresh.AnnualFailureRate
 
 			if smartMetadata.Critical {

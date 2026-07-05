@@ -311,7 +311,7 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 		import "influxdata/influxdb/schema"
 
 		from(bucket: "%s")
-		|> range(start: -7d, stop: now())
+		|> range(start: -15d, stop: now())
 		|> filter(fn: (r) => r["_measurement"] == "smart")
 		|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
 		|> last()

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
+	sharedconfig "github.com/analogj/scrutiny/webapp/backend/pkg/config"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/errors"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/version"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/web"
@@ -126,7 +127,7 @@ OPTIONS:
 						return err
 					}
 
-					settingsData, err := json.Marshal(config.AllSettings())
+					settingsData, err := json.Marshal(sharedconfig.RedactSensitiveSettings(config.AllSettings()))
 					webLogger.Debug(string(settingsData), err)
 
 					webServer := web.AppEngine{Config: config, Logger: webLogger}

@@ -80,8 +80,10 @@ export function DeviceDetail() {
         await Promise.all(promises);
         // Refetch device details to get updated data
         queryClient.invalidateQueries({ queryKey: ['device-detail', wwn] });
+        toast.success('Device settings updated');
       } catch (error) {
         console.error('Error saving device settings:', error);
+        toast.error('Failed to update device settings');
       }
     }
   };
@@ -225,12 +227,12 @@ export function DeviceDetail() {
               </div>
 
               {/* Rotation Speed */}
-              {device.rotational_speed && (
+              {device.rotational_speed ? (
                 <div className="my-2 col-span-2 lt-md:col-span-1">
                   <div>{device.rotational_speed} RPM</div>
                   <div className="text-hint text-size-md">Rotation Rate</div>
                 </div>
-              )}
+              ) : null}
 
               {/* Protocol */}
               {device.device_protocol && (
@@ -247,7 +249,7 @@ export function DeviceDetail() {
               </div>
 
               {/* Powered On */}
-              {latestSmart?.power_on_hours && (
+              {latestSmart?.power_on_hours ? (
                 <div className="my-2 col-span-2 lt-md:col-span-1">
                   <div>
                     {formatDeviceHours(latestSmart.power_on_hours, (config?.powered_on_hours_unit as any) || 'humanize', {
@@ -258,11 +260,11 @@ export function DeviceDetail() {
                   </div>
                   <div className="text-hint text-size-md">Powered On</div>
                 </div>
-              )}
+              ) : null}
 
               {/* Temperature */}
               <div className="my-2 col-span-2 lt-md:col-span-1">
-                <div>{formatTemperature(latestSmart?.temp || 0, config?.temperature_unit || 'celsius', true)}</div>
+                <div>{latestSmart?.temp !== undefined ? formatTemperature(latestSmart.temp, config?.temperature_unit || 'celsius', true) : '--'}</div>
                 <div className="text-hint text-size-md">Temperature</div>
               </div>
             </div>

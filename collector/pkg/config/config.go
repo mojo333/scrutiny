@@ -119,7 +119,7 @@ func (c *configuration) ValidateConfig() error {
 
 	errorStrings := []string{}
 	for configKey, commandArgString := range commandArgStrings {
-		args := strings.Split(commandArgString, " ")
+		args := strings.Fields(commandArgString)
 		//ensure that the args string contains `--json` or `-j` flag
 		containsJsonFlag := false
 		containsDeviceFlag := false

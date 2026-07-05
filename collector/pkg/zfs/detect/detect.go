@@ -292,7 +292,7 @@ func (d *Detect) parseScrubStatus(pool *models.ZFSPool, output string) {
 	// scan: none requested
 
 	scrubInProgress := regexp.MustCompile(`scan:\s+scrub in progress since (.+)`)
-	scrubFinished := regexp.MustCompile(`scan:\s+scrub repaired \S+ in (\S+) with (\d+) errors on (.+)`)
+	scrubFinished := regexp.MustCompile(`scan:\s+scrub repaired \S+ in (.+?) with (\d+) errors on (.+)`)
 	scrubCanceled := regexp.MustCompile(`scan:\s+scrub canceled on (.+)`)
 	scrubProgress := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*%\s+done`)
 

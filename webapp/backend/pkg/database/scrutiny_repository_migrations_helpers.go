@@ -115,7 +115,7 @@ func m20201107210306_FromPreInfluxDBSmartResultsCreatePostInfluxDBSmartResults(d
 			case "percentage_used":
 				postNvmeSmartHealthInformation.PercentageUsed = int64(preNvmeAttribute.Value)
 			case "data_units_read":
-				postNvmeSmartHealthInformation.DataUnitsWritten = int64(preNvmeAttribute.Value)
+				postNvmeSmartHealthInformation.DataUnitsRead = int64(preNvmeAttribute.Value)
 			case "data_units_written":
 				postNvmeSmartHealthInformation.DataUnitsWritten = int64(preNvmeAttribute.Value)
 			case "host_reads":

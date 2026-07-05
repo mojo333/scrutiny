@@ -15,7 +15,10 @@ import (
 // Temperature Data
 // //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (sr *scrutinyRepository) SaveSmartTemperature(ctx context.Context, wwn string, deviceProtocol string, collectorSmartData collector.SmartInfo, discardSCTTempHistory bool) error {
-	if len(collectorSmartData.AtaSctTemperatureHistory.Table) > 0 && !discardSCTTempHistory {
+	intervalSec := collectorSmartData.AtaSctTemperatureHistory.LoggingIntervalMinutes * 60
+	// A logging interval of 0 would cause a divide-by-zero panic when aligning
+	// datapoint timestamps below, so skip the SCT history table in that case.
+	if len(collectorSmartData.AtaSctTemperatureHistory.Table) > 0 && !discardSCTTempHistory && intervalSec > 0 {
 
 		for ndx, temp := range collectorSmartData.AtaSctTemperatureHistory.Table {
 			//temp value may be null, we must skip/ignore them. See #393
@@ -23,7 +26,6 @@ func (sr *scrutinyRepository) SaveSmartTemperature(ctx context.Context, wwn stri
 				continue
 			}
 
-			intervalSec := collectorSmartData.AtaSctTemperatureHistory.LoggingIntervalMinutes * 60
 			datapointTime := collectorSmartData.LocalTime.TimeT - int64(ndx)*intervalSec
 			alignedDatapointTime := datapointTime - datapointTime%intervalSec
 			smartTemp := measurements.SmartTemperature{

@@ -40,7 +40,7 @@ export function ZFSPools() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center">
         <img
-          src="/dashboard-placeholder.png"
+          src={`${import.meta.env.BASE_URL}dashboard-placeholder.png`}
           alt="No pools"
           className="w-64 h-64 mb-8 opacity-50"
         />

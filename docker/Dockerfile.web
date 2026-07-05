@@ -35,8 +35,11 @@ COPY --link --from=frontendbuild --chmod=644 /go/src/github.com/analogj/scrutiny
 RUN mkdir -p /opt/scrutiny/web && \
     mkdir -p /opt/scrutiny/config && \
     chmod -R a+rX /opt/scrutiny && \
-    chmod -R a+w /opt/scrutiny/config && \
-    useradd -r -s /usr/sbin/nologin scrutiny
+    useradd -r -s /usr/sbin/nologin scrutiny && \
+    # Config holds the auto-generated InfluxDB token; make it owned by the runtime
+    # service user (scrutiny) with no group/other access instead of world-writable.
+    chown -R scrutiny /opt/scrutiny/config && \
+    chmod -R u+rwX,go-rwx /opt/scrutiny/config
 
 USER scrutiny
 

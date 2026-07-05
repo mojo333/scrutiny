@@ -88,7 +88,7 @@ OPTIONS:
 					}
 
 					if c.IsSet("log-file") {
-						logFile, err := os.OpenFile(c.String("log-file"), os.O_CREATE|os.O_WRONLY, 0644)
+						logFile, err := os.OpenFile(c.String("log-file"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 						if err != nil {
 							logrus.Errorf("Failed to open log file %s for output: %s", c.String("log-file"), err)
 							return err

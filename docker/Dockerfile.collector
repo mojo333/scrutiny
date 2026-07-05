@@ -29,8 +29,9 @@ RUN chmod +x /opt/scrutiny/bin/scrutiny-collector-metrics && \
     rm -f /etc/cron.daily/apt /etc/cron.daily/dpkg /etc/cron.daily/passwd && \
     useradd -r -s /usr/sbin/nologin scrutiny
 
-# Note: smartmontools requires root or --privileged / --cap-add SYS_RAWIO at runtime
-USER scrutiny
+# Note: smartmontools requires root or --privileged / --cap-add SYS_RAWIO at runtime,
+# and the cron-based entrypoint writes /env.sh, edits /etc/cron.d/scrutiny and runs cron
+# as root. The container therefore runs as root (do NOT switch to USER scrutiny here).
 
 HEALTHCHECK --interval=60s --timeout=10s --retries=3 CMD scrutiny-collector-metrics run --help > /dev/null 2>&1 || exit 1
 

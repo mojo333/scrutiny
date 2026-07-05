@@ -15,12 +15,15 @@ func UploadZFSPoolMetrics(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	var pool models.ZFSPool
 	err := c.BindJSON(&pool)
 	if err != nil {
 		logger.Errorln("Cannot parse ZFS pool metrics", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
 

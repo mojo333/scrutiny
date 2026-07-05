@@ -14,6 +14,9 @@ func GetZFSPoolDetails(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 
 	guid := c.Param("guid")
+	if !requireValidGUID(c, logger, guid) {
+		return
+	}
 
 	// Get the pool details with vdev hierarchy
 	pool, err := deviceRepo.GetZFSPoolDetails(c, guid)

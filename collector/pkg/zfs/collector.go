@@ -27,6 +27,9 @@ type Collector struct {
 
 // CreateCollector creates a new ZFS collector
 func CreateCollector(appConfig config.Interface, logger *logrus.Entry, apiEndpoint string) (*Collector, error) {
+	//ensure the base endpoint always has a trailing slash (regardless of config-file/CLI/env source),
+	//otherwise relative url.Parse() drops any basepath (eg. http://host:8080/scrutiny).
+	apiEndpoint = strings.TrimSuffix(apiEndpoint, "/") + "/"
 	apiEndpointUrl, err := url.Parse(apiEndpoint)
 	if err != nil {
 		return nil, err
@@ -35,6 +38,10 @@ func CreateCollector(appConfig config.Interface, logger *logrus.Entry, apiEndpoi
 	timeout := 60
 	if appConfig != nil && appConfig.IsSet("api.timeout") {
 		timeout = appConfig.GetInt("api.timeout")
+	}
+	//guard against a misconfigured (0 or negative) timeout, which would disable the client timeout entirely.
+	if timeout <= 0 {
+		timeout = 60
 	}
 
 	collector := &Collector{
@@ -123,6 +130,11 @@ func (c *Collector) RegisterPools(pools []models.ZFSPool) (*models.ZFSPoolWrappe
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		c.logger.Errorf("Failed to register pools: API returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("registering pools failed with HTTP %d", resp.StatusCode)
+	}
 
 	var responseWrapper models.ZFSPoolWrapper
 	if err := json.NewDecoder(resp.Body).Decode(&responseWrapper); err != nil {

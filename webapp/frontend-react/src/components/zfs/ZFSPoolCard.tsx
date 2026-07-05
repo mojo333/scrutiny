@@ -272,8 +272,8 @@ export function ZFSPoolCard({ pool }: ZFSPoolCardProps) {
 
       {pool.status === 'DEGRADED' && pool.scrub_state !== 'scanning' && (
         <div className="mb-4 p-2.5 bg-gray-800/50 rounded text-sm text-gray-400">
-          One or more devices is currently being scanned. The pool will continue to function,
-          possibly in a degraded state.
+          One or more devices has failed. The pool will continue to function, possibly in a
+          degraded state.
         </div>
       )}
 
@@ -292,6 +292,8 @@ export function ZFSPoolCard({ pool }: ZFSPoolCardProps) {
             {pool.status === 'ONLINE' && 'Online'}
             {pool.status === 'FAULTED' && 'Faulted'}
             {pool.status === 'OFFLINE' && 'Offline'}
+            {pool.status === 'UNAVAIL' && 'Unavailable'}
+            {pool.status === 'REMOVED' && 'Removed'}
           </div>
         </div>
 

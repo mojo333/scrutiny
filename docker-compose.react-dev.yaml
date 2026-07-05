@@ -4,10 +4,12 @@ services:
     container_name: scrutiny-influxdb
     image: influxdb:2.7
     ports:
-      - "8086:8086"
+      # Dev-only: bind to localhost so the admin API is not exposed on all interfaces.
+      - "127.0.0.1:8086:8086"
     volumes:
       - ./influxdb/dev:/var/lib/influxdb2
     environment:
+      # Dev-only credentials — DO NOT reuse in any deployment reachable from a network.
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
       - DOCKER_INFLUXDB_INIT_PASSWORD=password123
@@ -27,7 +29,8 @@ services:
     container_name: scrutiny-backend
     image: ghcr.io/analogj/scrutiny:master-web
     ports:
-      - "8080:8080"
+      # Dev-only: bind to localhost instead of all interfaces.
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./config/dev:/opt/scrutiny/config
     environment:
@@ -57,7 +60,8 @@ services:
       context: ./webapp/frontend-react
       dockerfile: Dockerfile.dev
     ports:
-      - "4200:4200"
+      # Dev-only: bind to localhost instead of all interfaces.
+      - "127.0.0.1:4200:4200"
     volumes:
       - ./webapp/frontend-react/src:/app/src
       - ./webapp/frontend-react/public:/app/public

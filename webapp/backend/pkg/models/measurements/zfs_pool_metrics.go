@@ -1,6 +1,7 @@
 package measurements
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -58,10 +59,20 @@ func (m *ZFSPoolMetrics) Flatten() (tags map[string]string, fields map[string]in
 
 // NewZFSPoolMetricsFromInfluxDB creates a ZFSPoolMetrics from InfluxDB query result
 func NewZFSPoolMetricsFromInfluxDB(attrs map[string]interface{}) (*ZFSPoolMetrics, error) {
+	date, ok := attrs["_time"].(time.Time)
+	if !ok {
+		return nil, fmt.Errorf("could not parse ZFS pool metrics: missing or invalid _time")
+	}
+	poolGUID, ok := attrs["pool_guid"].(string)
+	if !ok {
+		return nil, fmt.Errorf("could not parse ZFS pool metrics: missing or invalid pool_guid")
+	}
+	poolName, _ := attrs["pool_name"].(string)
+
 	m := ZFSPoolMetrics{
-		Date:     attrs["_time"].(time.Time),
-		PoolGUID: attrs["pool_guid"].(string),
-		PoolName: attrs["pool_name"].(string),
+		Date:     date,
+		PoolGUID: poolGUID,
+		PoolName: poolName,
 	}
 
 	// Parse optional fields

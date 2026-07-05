@@ -153,6 +153,13 @@ from(bucket: sourceBucket)
 |> set(key: "_measurement", value: "temp")
 |> set(key: "_field", value: "temp")
 |> to(bucket: destBucket, org: destOrg)
+
+from(bucket: sourceBucket)
+|> range(start: rangeStart, stop: rangeEnd)
+|> filter(fn: (r) => r["_measurement"] == "zfs_pool")
+|> group(columns: ["pool_guid", "pool_name", "_field"])
+|> aggregateWindow(every: aggWindow, fn: last, createEmpty: false)
+|> to(bucket: destBucket, org: destOrg)
 		`,
 		name,
 		cron,
