@@ -2,7 +2,11 @@ package handler
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // validWWN matches:
@@ -31,4 +35,15 @@ func ValidateGUID(guid string) error {
 		return fmt.Errorf("invalid pool GUID format: %q", guid)
 	}
 	return nil
+}
+
+// requireValidGUID validates a ZFS pool GUID and, if invalid, writes a 400 response
+// and returns ok=false. Callers should return immediately when ok is false.
+func requireValidGUID(c *gin.Context, logger *logrus.Entry, guid string) (ok bool) {
+	if err := ValidateGUID(guid); err != nil {
+		logger.Errorln("Invalid ZFS pool GUID", err)
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid pool GUID"})
+		return false
+	}
+	return true
 }

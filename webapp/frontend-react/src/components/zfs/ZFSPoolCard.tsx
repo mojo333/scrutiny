@@ -262,18 +262,18 @@ export function ZFSPoolCard({ pool }: ZFSPoolCardProps) {
 
       {/* Warning/Status Message */}
       {pool.status === 'DEGRADED' && pool.scrub_state === 'scanning' && (
-        <div className="mb-4 p-2.5 bg-gray-800/50 rounded text-sm text-gray-400">
-          One or more devices is currently being scanned. The pool will continue to function,
-          possibly in a degraded state.
-        </div>
-      )}
-
-      {pool.status === 'DEGRADED' && pool.scrub_state !== 'scanning' && (
         <div className="mb-4 p-2.5 bg-yellow-900/30 border border-yellow-600/40 rounded flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
           <div className="text-sm font-medium text-yellow-500">
             Action: Wait for the scrub to complete.
           </div>
+        </div>
+      )}
+
+      {pool.status === 'DEGRADED' && pool.scrub_state !== 'scanning' && (
+        <div className="mb-4 p-2.5 bg-gray-800/50 rounded text-sm text-gray-400">
+          One or more devices has failed. The pool will continue to function, possibly in a
+          degraded state.
         </div>
       )}
 

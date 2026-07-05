@@ -84,7 +84,6 @@ export function DeviceDetail() {
       } catch (error) {
         console.error('Error saving device settings:', error);
         toast.error('Failed to update device settings');
-        throw error;
       }
     }
   };

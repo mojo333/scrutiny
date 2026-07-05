@@ -12,6 +12,7 @@ import (
 	"github.com/analogj/scrutiny/collector/pkg/collector"
 	configPkg "github.com/analogj/scrutiny/collector/pkg/config"
 	"github.com/analogj/scrutiny/collector/pkg/errors"
+	sharedconfig "github.com/analogj/scrutiny/webapp/backend/pkg/config"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/version"
 	"github.com/sirupsen/logrus"
 
@@ -136,7 +137,7 @@ OPTIONS:
 						return err
 					}
 
-					settingsData, err := json.MarshalIndent(configPkg.RedactSensitiveSettings(config.AllSettings()), "", "\t")
+					settingsData, err := json.MarshalIndent(sharedconfig.RedactSensitiveSettings(config.AllSettings()), "", "\t")
 					collectorLogger.Debug(string(settingsData), err)
 					metricCollector, err := collector.CreateMetricsCollector(
 						config,

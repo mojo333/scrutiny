@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -50,7 +51,16 @@ func LoggerMiddleware(logger *logrus.Entry) gin.HandlerFunc {
 			// Bound the amount of body we will read into memory. MaxBytesReader
 			// caps the total request body size regardless of Content-Length.
 			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBodyBytes)
-			buf, _ := io.ReadAll(c.Request.Body)
+			buf, err := io.ReadAll(c.Request.Body)
+			if err != nil {
+				var maxBytesErr *http.MaxBytesError
+				if errors.As(err, &maxBytesErr) {
+					c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"success": false, "error": "request body too large"})
+				} else {
+					c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "error": "failed to read request body"})
+				}
+				return
+			}
 			reqBodyReader2 := io.NopCloser(bytes.NewBuffer(buf)) //We have to create a new Buffer, because the original body is consumed.
 			c.Request.Body = reqBodyReader2
 			// Only retain a bounded prefix of the body for debug logging.

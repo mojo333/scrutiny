@@ -13,6 +13,7 @@ import (
 	configPkg "github.com/analogj/scrutiny/collector/pkg/config"
 	"github.com/analogj/scrutiny/collector/pkg/errors"
 	"github.com/analogj/scrutiny/collector/pkg/zfs"
+	sharedconfig "github.com/analogj/scrutiny/webapp/backend/pkg/config"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/version"
 	"github.com/fatih/color"
 	"github.com/sirupsen/logrus"
@@ -146,7 +147,7 @@ OPTIONS:
 						return err
 					}
 
-					settingsData, err := json.MarshalIndent(configPkg.RedactSensitiveSettings(config.AllSettings()), "", "\t")
+					settingsData, err := json.MarshalIndent(sharedconfig.RedactSensitiveSettings(config.AllSettings()), "", "\t")
 					collectorLogger.Debug(string(settingsData), err)
 
 					zfsCollector, err := zfs.CreateCollector(
