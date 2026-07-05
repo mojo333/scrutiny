@@ -124,13 +124,3 @@ func (w responseBodyLogWriter) Write(b []byte) (int, error) {
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
 }
-
-// Request Logging
-
-func readBody(reader io.Reader) string {
-	buf := new(bytes.Buffer)
-	_, _ = buf.ReadFrom(reader)
-
-	s := buf.String()
-	return s
-}
