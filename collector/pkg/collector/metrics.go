@@ -162,6 +162,11 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 
 		// non-fatal bits (failing disk, error logs) still come with a complete report worth publishing
 		if exitStatus.IsFatal() {
+			if exitStatus == collector.SmartctlExitStatusFailDev && hasPowerModeCheck(args) {
+				mc.logger.Infof("%s is in a low power mode, skipping collection\n", deviceName)
+				return
+			}
+
 			mc.logger.Errorf("smartctl output for %s is incomplete, not publishing results\n", deviceName)
 			return
 		}
@@ -170,6 +175,17 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 	if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
 		mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
 	}
+}
+
+// if -n is passed and the drive is asleep, smartctl will return an exit code
+// with one of our "failure" bits set, even though it's just skipping the check
+func hasPowerModeCheck(args []string) bool {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--nocheck") || (strings.HasPrefix(arg, "-n") && !strings.HasPrefix(arg, "--")) {
+			return true
+		}
+	}
+	return false
 }
 
 func (mc *MetricsCollector) Publish(deviceWWN string, payload []byte) error {
