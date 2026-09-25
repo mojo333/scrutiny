@@ -142,24 +142,33 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 	result, err := mc.shell.Command(mc.logger, mc.config.GetString("commands.metrics_smartctl_bin"), args, "", os.Environ())
 	resultBytes := []byte(result)
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			// smartctl command exited with an error, we should still push the data to the API server
-			mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
-			mc.LogSmartctlExitStatus(collector.SmartctlExitStatus(exitError.ExitCode()))
-			if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
-				mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
-			}
-		} else {
+		exitError, isExitError := err.(*exec.ExitError)
+		if !isExitError {
 			mc.logger.Errorf("error while attempting to execute smartctl: %s\n", deviceName)
 			mc.logger.Errorf("ERROR MESSAGE: %v", err)
 			mc.logger.Errorf("IGNORING RESULT: %v", result)
+			return
 		}
-		return
-	} else {
-		//successful run, pass the results directly to webapp backend for parsing and processing.
-		if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
-			mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
+
+		// killed processes return exit code -1, which we'd decode as all bits being set
+		if exitError.ExitCode() < 0 {
+			mc.logger.Errorf("smartctl was terminated before it could finish processing %s: %v", deviceName, exitError)
+			return
 		}
+
+		exitStatus := collector.SmartctlExitStatus(exitError.ExitCode())
+		mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
+		mc.LogSmartctlExitStatus(exitStatus)
+
+		// non-fatal bits (failing disk, error logs) still come with a complete report worth publishing
+		if exitStatus.IsFatal() {
+			mc.logger.Errorf("smartctl output for %s is incomplete, not publishing results\n", deviceName)
+			return
+		}
+	}
+
+	if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
+		mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
 	}
 }
 
