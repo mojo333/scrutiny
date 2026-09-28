@@ -97,7 +97,10 @@ func (sa *SmartScsiAttribute) PopulateAttributeStatus() *SmartScsiAttribute {
 			if (smartMetadata.Ideal == "low" && value > sa.Threshold) ||
 				(smartMetadata.Ideal == "high" && value < sa.Threshold) {
 				sa.Status = pkg.AttributeStatusSet(sa.Status, pkg.AttributeStatusFailedScrutiny)
-				sa.StatusReason = "Attribute is failing recommended SMART threshold"
+				sa.StatusReason = "Attribute is much larger than zero"
+			} else if smartMetadata.Ideal == "low" && value > 0 {
+				sa.Status = pkg.AttributeStatusSet(sa.Status, pkg.AttributeStatusWarningScrutiny)
+				sa.StatusReason = "Attribute is non-zero"
 			}
 		}
 	}
