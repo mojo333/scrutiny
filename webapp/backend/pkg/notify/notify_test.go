@@ -340,7 +340,7 @@ func TestShouldNotify_NoRepeat_ChangedNormalizedValueSmartFailure(t *testing.T) 
 			Value:       8,
 			Threshold:   10,
 			RawValue:    200,
-			WhenFailed:  pkg.AttributeWhenFailedFailingNow,
+			WhenFailed:  "now",
 			Status:      pkg.AttributeStatusFailedSmart,
 		},
 	}}
@@ -350,7 +350,7 @@ func TestShouldNotify_NoRepeat_ChangedNormalizedValueSmartFailure(t *testing.T) 
 			Value:       5,
 			Threshold:   10,
 			RawValue:    200,
-			WhenFailed:  pkg.AttributeWhenFailedFailingNow,
+			WhenFailed:  "now",
 			Status:      pkg.AttributeStatusFailedSmart,
 		},
 	}}
