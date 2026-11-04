@@ -46,10 +46,15 @@ func (sr *scrutinyRepository) SaveSmartTemperature(ctx context.Context, wwn stri
 		}
 	}
 
+	temp, ok := collectorSmartData.CurrentTemperature()
+	if !ok {
+		return nil
+	}
+
 	// Even if ata_sct_temperature_history is present, also add current temperature. See #824
 	smartTemp := measurements.SmartTemperature{
 		Date: time.Unix(collectorSmartData.LocalTime.TimeT, 0),
-		Temp: collectorSmartData.CurrentTemperature(),
+		Temp: temp,
 	}
 
 	tags, fields := smartTemp.Flatten()
