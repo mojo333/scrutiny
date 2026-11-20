@@ -474,7 +474,9 @@ func (sr *scrutinyRepository) Migrate(ctx context.Context) error {
 				// sqlite doesn't support altering columns
 				// so we have to create a new one, drop the old one, then rename.
 				sr.logger.Debug("Creating new devices table")
-				tx.Table("devices_new").AutoMigrate(&m20260216155600.Device{})
+				if err := tx.Table("devices_new").AutoMigrate(&m20260216155600.Device{}); err != nil {
+					return err
+				}
 				if len(devices) > 0 {
 					if err := tx.Table("devices_new").Create(&devices).Error; err != nil {
 						return err

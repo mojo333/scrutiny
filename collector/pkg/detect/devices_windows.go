@@ -1,8 +1,6 @@
 package detect
 
 import (
-	"strings"
-
 	"github.com/analogj/scrutiny/collector/pkg/common/shell"
 	"github.com/analogj/scrutiny/collector/pkg/models"
 )

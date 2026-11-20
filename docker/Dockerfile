@@ -33,7 +33,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
 # names are pinned too, since the Makefile appends -$(GOOS)-$(GOARCH) to whichever
 # one isn't already overridden on the command line, which would break the COPY
 # --from=backendbuild steps below
-RUN make binary-clean binary-all WEB_BINARY_NAME=scrutiny COLLECTOR_BINARY_NAME=scrutiny-collector-metrics GOOS=$TARGETOS GOARCH=$TARGETARCH
+RUN make binary-clean binary-all WEB_BINARY_NAME=scrutiny COLLECTOR_BINARY_NAME=scrutiny-collector-metrics COLLECTOR_ZFS_BINARY_NAME=scrutiny-collector-zfs GOOS=$TARGETOS GOARCH=$TARGETARCH
 
 
 ######## Build smartmontools from source

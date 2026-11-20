@@ -193,7 +193,9 @@ func (mc *MetricsCollector) Collect(scrutiny_uuid uuid.UUID, deviceName string, 
 		}
 	}
 
-	mc.Publish(scrutiny_uuid, resultBytes)
+	if pubErr := mc.Publish(scrutiny_uuid, resultBytes); pubErr != nil {
+		mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
+	}
 }
 
 // if -n is passed and the drive is asleep, smartctl will return an exit code

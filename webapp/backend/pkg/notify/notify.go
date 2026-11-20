@@ -444,7 +444,7 @@ func (n *Notify) SendShoutrrrNotification(shoutrrrUrl string) error {
 
 	n.Logger.Infof("Sending notifications to %v", shoutrrrUrl)
 
-	sender, err := shoutrrr.CreateSender(shoutrrrUrl)
+	sender, err := shoutrrr.CreateSenderWithOptions(shoutrrrTypes.SenderOptions{}, shoutrrrUrl)
 	if err != nil {
 		n.Logger.Errorf("An error occurred while sending notifications %v: %v", shoutrrrUrl, err)
 		return err
