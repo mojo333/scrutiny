@@ -4,10 +4,13 @@ import type {SmartAttributeModel} from './smart-attribute-model';
 export interface SmartModel {
     date: string;
     device_wwn: string;
+    scrutiny_uuid: string;
     device_protocol: string;
 
     temp: number;
     power_on_hours: number;
     power_cycle_count: number
+    total_bytes_read?: number
+    total_bytes_written?: number
     attrs: { [key: string]: SmartAttributeModel }
 }

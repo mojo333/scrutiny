@@ -41,12 +41,12 @@ export function DeviceCard({ deviceSummary, config, showArchived }: DeviceCardPr
 
     // Update muted status if changed
     if (muted !== deviceSummary.device.muted) {
-      promises.push(muted ? muteDevice(deviceSummary.device.wwn) : unmuteDevice(deviceSummary.device.wwn));
+      promises.push(muted ? muteDevice(deviceSummary.device.scrutiny_uuid) : unmuteDevice(deviceSummary.device.scrutiny_uuid));
     }
 
     // Update label if changed
     if (label !== deviceSummary.device.label) {
-      promises.push(setDeviceLabel(deviceSummary.device.wwn, label));
+      promises.push(setDeviceLabel(deviceSummary.device.scrutiny_uuid, label));
     }
 
     if (promises.length > 0) {
@@ -64,10 +64,10 @@ export function DeviceCard({ deviceSummary, config, showArchived }: DeviceCardPr
   const handleMuteToggle = async () => {
     try {
       if (deviceSummary.device.muted) {
-        await unmuteDevice(deviceSummary.device.wwn);
+        await unmuteDevice(deviceSummary.device.scrutiny_uuid);
         toast.success('Device unmuted');
       } else {
-        await muteDevice(deviceSummary.device.wwn);
+        await muteDevice(deviceSummary.device.scrutiny_uuid);
         toast.success('Device muted');
       }
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
@@ -80,10 +80,10 @@ export function DeviceCard({ deviceSummary, config, showArchived }: DeviceCardPr
   const handleArchiveToggle = async () => {
     try {
       if (deviceSummary.device.archived) {
-        await unarchiveDevice(deviceSummary.device.wwn);
+        await unarchiveDevice(deviceSummary.device.scrutiny_uuid);
         toast.success('Device unarchived');
       } else {
-        await archiveDevice(deviceSummary.device.wwn);
+        await archiveDevice(deviceSummary.device.scrutiny_uuid);
         toast.success('Device archived');
       }
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
@@ -101,7 +101,7 @@ export function DeviceCard({ deviceSummary, config, showArchived }: DeviceCardPr
     }
 
     toast.promise(
-      deleteDevice(deviceSummary.device.wwn).then(() => {
+      deleteDevice(deviceSummary.device.scrutiny_uuid).then(() => {
         queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
       }),
       {
@@ -135,8 +135,8 @@ export function DeviceCard({ deviceSummary, config, showArchived }: DeviceCardPr
       <div className="flex items-center">
         <div className="flex flex-col">
           <Link
-            to="/device/$wwn"
-            params={{ wwn: deviceSummary.device.wwn }}
+            to="/device/$scrutinyUuid"
+            params={{ scrutinyUuid: deviceSummary.device.scrutiny_uuid }}
             className="font-bold uppercase tracking-wider no-underline hover:underline text-size-md text-cool-gray-400"
           >
             {deviceTitleWithFallback(deviceSummary.device, config?.dashboard_display || 'name')}

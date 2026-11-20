@@ -11,18 +11,18 @@
 [![codecov](https://codecov.io/gh/AnalogJ/scrutiny/branch/master/graph/badge.svg)](https://codecov.io/gh/AnalogJ/scrutiny)
 [![GitHub license](https://img.shields.io/github/license/AnalogJ/scrutiny.svg?style=flat-square)](https://github.com/AnalogJ/scrutiny/blob/master/LICENSE)
 [![Godoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/analogj/scrutiny)
-[![Go Report Card](https://goreportcard.com/badge/github.com/AnalogJ/scrutiny?style=flat-square)](https://goreportcard.com/report/github.com/AnalogJ/scrutiny)
 [![GitHub release](http://img.shields.io/github/release/AnalogJ/scrutiny.svg?style=flat-square)](https://github.com/AnalogJ/scrutiny/releases)
 
 WebUI for smartd S.M.A.R.T monitoring
 
-> NOTE: Scrutiny is a Work-in-Progress and still has some rough edges.
+> [!NOTE]
+> Scrutiny is a Work-in-Progress and still has some rough edges.
 
 [![](docs/dashboard.png)](https://imgur.com/a/5k8qMzS)
 
 # Introduction
 
-If you run a server with more than a couple of hard drives, you're probably already familiar with S.M.A.R.T and the `smartd` daemon. If not, it's an incredible open source project described as the following:
+If you run a server with more than a couple of hard drives, you're probably already familiar with S.M.A.R.T and [the `smartd` daemon](https://github.com/smartmontools/smartmontools). If not, it's an incredible open source project [described as the following](https://linux.die.net/man/8/smartd):
 
 > smartd is a daemon that monitors the Self-Monitoring, Analysis and Reporting Technology (SMART) system built into many ATA, IDE and SCSI-3 hard drives. The purpose of SMART is to monitor the reliability of the hard drive and predict drive failures, and to carry out different types of drive self-tests.
 
@@ -59,7 +59,7 @@ Scrutiny uses `smartctl --scan` to detect devices/drives.
     - While some RAID controllers support passing through the underlying SMART data to `smartctl` others do not.
     - In some cases `--scan` does not correctly detect the device type, returning [incomplete SMART data](https://github.com/AnalogJ/scrutiny/issues/45).
     Scrutiny supports overriding detected device type via the config file: see [example.collector.yaml](https://github.com/AnalogJ/scrutiny/blob/master/example.collector.yaml)
-- If you use docker, you **must** pass though the RAID virtual disk to the container using `--device` (see below)
+- If you use docker, you **must** pass through the RAID virtual disk to the container using `--device` (see below)
     - This device may be in `/dev/*` or `/dev/bus/*`.
     - If you're unsure, run `smartctl --scan` on your host, and pass all listed devices to the container.
 
@@ -69,7 +69,7 @@ See [docs/TROUBLESHOOTING_DEVICE_COLLECTOR.md](./docs/TROUBLESHOOTING_DEVICE_COL
 
 > [!IMPORTANT]
 > Using `latest-` tags is dangerous as it can update your image without warning. It is a best practice to pin a specific version. scrutiny pushes releases with semver tags,
-> so you can use tags like `v0.8.2-omnibus`, `v0.8-web`, `v0-collector`, etc. For a list of all image tags see
+> so you can use tags like `v0.9.3-omnibus`, `v0.9-web`, `v0-collector`, etc. For a list of all image tags see
 > [scrutiny package versions](https://github.com/AnalogJ/scrutiny/pkgs/container/scrutiny/versions?filters%5Bversion_type%5D=tagged)
 
 If you're using Docker, getting started is as simple as running the following command:
@@ -102,7 +102,7 @@ other Docker images:
 - `ghcr.io/analogj/scrutiny:latest-collector` - Contains the Scrutiny data collector, `smartctl` binary and cron-like
   scheduler. You can run one collector on each server.
 - `ghcr.io/analogj/scrutiny:latest-web` - Contains the Web UI and API. Only one container necessary
-- `influxdb:2.2` - InfluxDB image, used by the Web container to persist SMART data. Only one container necessary
+- `influxdb:2.8` - InfluxDB image, used by the Web container to persist SMART data. Only one container necessary
   See [docs/TROUBLESHOOTING_INFLUXDB.md](./docs/TROUBLESHOOTING_INFLUXDB.md)
 
 > See [docker/example.hubspoke.docker-compose.yml](https://github.com/AnalogJ/scrutiny/blob/master/docker/example.hubspoke.docker-compose.yml) for a docker-compose file.
@@ -111,7 +111,7 @@ other Docker images:
 docker run -p 8086:8086 --restart unless-stopped \
   -v `pwd`/influxdb2:/var/lib/influxdb2 \
   --name scrutiny-influxdb \
-  influxdb:2.2
+  influxdb:2.8
 
 docker run -p 8080:8080 --restart unless-stopped \
   -v `pwd`/scrutiny:/opt/scrutiny/config \
@@ -127,6 +127,10 @@ docker run --restart unless-stopped \
   --name scrutiny-collector \
   ghcr.io/analogj/scrutiny:latest-collector
 ```
+
+### Hub rootless installation using Podman Quadlets
+
+See [docs/INSTALL_ROOTLESS_PODMAN.md](docs/INSTALL_ROOTLESS_PODMAN.md) for instructions.
 
 ## Manual Installation (without-Docker)
 
@@ -190,6 +194,65 @@ Scrutiny supports sending SMART device failure notifications via the following s
 Check the `notify.urls` section of [example.scrutiny.yml](example.scrutiny.yaml) for examples.
 
 For more information and troubleshooting, see the [TROUBLESHOOTING_NOTIFICATIONS.md](./docs/TROUBLESHOOTING_NOTIFICATIONS.md) file
+
+### Collector Errors
+
+Scrutiny will also notify you if the collector is unable to run `smartctl` successfully, preventing it from reporting data.
+This is on by default. The global setting in `collector.yaml` also covers `smartctl --scan` and devices that failed
+before registering with Scrutiny:
+
+```yaml
+notify:
+  on_smartctl_error: true
+```
+
+`scrutiny.yaml` has the same setting, for all devices or one device in the `devices` section, keyed by its `scrutiny_uuid`.
+The device's setting takes priority:
+
+```yaml
+notify:
+  on_smartctl_error: true
+devices:
+  - scrutiny_uuid: 9a4d34b5-b2ee-51ef-8506-90eea09be417
+    notifications:
+      on_smartctl_error: false
+```
+
+A drive that `-n`/`--nocheck` found in a low power mode is not a failure, and is never reported.
+
+### Missed Uploads
+
+Scrutiny will also notify you when a device stops uploading data. This is on for every device, and can be configured
+globally in `notify`, or per device in the `devices` section of `scrutiny.yaml`, which takes priority. A device's
+`scrutiny_uuid` is the last part of its details page URL.
+
+```yaml
+notify:
+  on_missed_upload: true # optional, default true
+  upload_period: 24h     # optional, default 0 (estimate)
+devices:
+  - scrutiny_uuid: 9a4d34b5-b2ee-51ef-8506-90eea09be417
+    notifications:
+      on_missed_upload: true # optional, default notify.on_missed_upload
+      upload_period: 0       # optional, default notify.upload_period
+```
+
+A notification is sent when the next upload is more than 10% later than `upload_period`. When `upload_period` is 0,
+Scrutiny uses the average time between the device's last 3 uploads. If those intervals differ by more than 10%, it logs
+a warning and waits for them to settle before notifying. Scrutiny saves the estimated period, and uses it again after a restart unless `upload_period` is not 0. Drives that `-n`/`--nocheck` skips in a low power mode don't upload, so set `on_missed_upload: false`
+for them.
+
+### Disabling Notifications for a Device
+
+Set `notifications.disabled: true` on a device in the `devices` section of `scrutiny.yaml` to stop all of its
+notifications (SMART failures, collector errors and missed uploads). Default `false`.
+
+```yaml
+devices:
+  - scrutiny_uuid: 9a4d34b5-b2ee-51ef-8506-90eea09be417
+    notifications:
+      disabled: true
+```
 
 ### Testing Notifications
 

@@ -1,0 +1,4 @@
+version: 1
+
+notify:
+  on_smartctl_error: false

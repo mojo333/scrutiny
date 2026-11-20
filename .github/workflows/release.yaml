@@ -26,7 +26,7 @@ jobs:
     # Service containers to run with `build` (Required for end-to-end testing)
     services:
       influxdb:
-        image: influxdb:2.2
+        image: influxdb:2.8
         env:
           DOCKER_INFLUXDB_INIT_MODE: setup
           DOCKER_INFLUXDB_INIT_USERNAME: admin
@@ -62,6 +62,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SCRUTINY_GITHUB_TOKEN }} # Leave this line unchanged
       - name: Test
+        env:
+          # packagr image pins GOTOOLCHAIN=local; download go.mod's Go version instead.
+          GOTOOLCHAIN: auto
         run: |
           make binary-clean binary-test-coverage
       - name: Commit Changes Locally
@@ -72,6 +75,31 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SCRUTINY_GITHUB_TOKEN }} # Leave this line unchanged
         with:
           version_metadata_path: ${{ github.event.inputs.version_metadata_path }}
+      - name: Checkout release tag
+        shell: bash
+        env:
+          # the packagr container's base image has no en_US.UTF-8 locale generated, and the
+          # runner injects LANG/LC_ALL=en_US.UTF-8 into every step regardless
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: |
+          # releasr and bumpr talk to the repo through go-git, which skips this check; this is the
+          # first step in the job to shell out to the real git CLI, so it's the first to hit it.
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+          RELEASE_TAG="v${{ steps.bump_version.outputs.release_version }}"
+          if ! git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" > /dev/null; then
+            # action-bumpr-go declares its output as `version` but emits `release_version`,
+            # and it does so over the deprecated ::set-output. Fall back to the tag that
+            # releasr created if that ever stops arriving.
+            RELEASE_TAG="$(git tag --points-at HEAD | head -n 1)"
+          fi
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "could not determine the release tag (got '${RELEASE_TAG}')"
+            exit 1
+          fi
+          echo "checking out ${RELEASE_TAG}"
+          git checkout --detach "refs/tags/${RELEASE_TAG}"
       - name: Upload workspace
         uses: actions/upload-artifact@v4
         with:

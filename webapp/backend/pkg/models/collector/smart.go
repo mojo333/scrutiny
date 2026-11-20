@@ -139,6 +139,18 @@ type SmartInfo struct {
 		Revision int                           `json:"revision"`
 		Table    []AtaSmartAttributesTableItem `json:"table"`
 	} `json:"ata_smart_attributes"`
+	AtaDeviceStatistics struct {
+		Pages []struct {
+			Number int `json:"number"`
+			Table  []struct {
+				Offset int   `json:"offset"`
+				Value  int64 `json:"value"`
+				Flags  struct {
+					Valid bool `json:"valid"`
+				} `json:"flags"`
+			} `json:"table"`
+		} `json:"pages"`
+	} `json:"ata_device_statistics"`
 	AtaSmartErrorLog struct {
 		Summary struct {
 			Revision    int `json:"revision"`
@@ -148,21 +160,21 @@ type SmartInfo struct {
 				ErrorNumber         int `json:"error_number"`
 				LifetimeHours       int `json:"lifetime_hours"`
 				CompletionRegisters struct {
-					Error  int `json:"error"`
-					Status int `json:"status"`
-					Count  int `json:"count"`
-					Lba    int `json:"lba"`
-					Device int `json:"device"`
+					Error  int    `json:"error"`
+					Status int    `json:"status"`
+					Count  int    `json:"count"`
+					Lba    uint64 `json:"lba"`
+					Device int    `json:"device"`
 				} `json:"completion_registers"`
 				ErrorDescription string `json:"error_description"`
 				PreviousCommands []struct {
 					Registers struct {
-						Command       int `json:"command"`
-						Features      int `json:"features"`
-						Count         int `json:"count"`
-						Lba           int `json:"lba"`
-						Device        int `json:"device"`
-						DeviceControl int `json:"device_control"`
+						Command       int    `json:"command"`
+						Features      int    `json:"features"`
+						Count         int    `json:"count"`
+						Lba           uint64 `json:"lba"`
+						Device        int    `json:"device"`
+						DeviceControl int    `json:"device_control"`
 					} `json:"registers"`
 					PowerupMilliseconds int    `json:"powerup_milliseconds"`
 					CommandName         string `json:"command_name"`
@@ -193,8 +205,8 @@ type SmartInfo struct {
 	AtaSmartSelectiveSelfTestLog struct {
 		Revision int `json:"revision"`
 		Table    []struct {
-			LbaMin int `json:"lba_min"`
-			LbaMax int `json:"lba_max"`
+			LbaMin uint64 `json:"lba_min"`
+			LbaMax uint64 `json:"lba_max"`
 			Status struct {
 				Value  int    `json:"value"`
 				String string `json:"string"`
@@ -212,10 +224,10 @@ type SmartInfo struct {
 		ID          int `json:"id"`
 		SubsystemID int `json:"subsystem_id"`
 	} `json:"nvme_pci_vendor"`
-	NvmeIeeeOuiIdentifier  int   `json:"nvme_ieee_oui_identifier"`
-	NvmeTotalCapacity      int64 `json:"nvme_total_capacity"`
-	NvmeControllerID       int   `json:"nvme_controller_id"`
-	NvmeNumberOfNamespaces int   `json:"nvme_number_of_namespaces"`
+	NvmeIeeeOuiIdentifier  uint32 `json:"nvme_ieee_oui_identifier"`
+	NvmeTotalCapacity      int64  `json:"nvme_total_capacity"`
+	NvmeControllerID       int    `json:"nvme_controller_id"`
+	NvmeNumberOfNamespaces int    `json:"nvme_number_of_namespaces"`
 	NvmeNamespaces         []struct {
 		ID   int `json:"id"`
 		Size struct {
@@ -231,6 +243,10 @@ type SmartInfo struct {
 			Bytes  int64 `json:"bytes"`
 		} `json:"utilization"`
 		FormattedLbaSize int `json:"formatted_lba_size"`
+		Eui64            struct {
+			Oui   uint32 `json:"oui"`
+			ExtId uint64 `json:"ext_id"`
+		} `json:"eui64"`
 	} `json:"nvme_namespaces"`
 	NvmeSmartHealthInformationLog NvmeSmartHealthInformationLog `json:"nvme_smart_health_information_log"`
 

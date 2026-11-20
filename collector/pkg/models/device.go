@@ -1,7 +1,12 @@
 package models
 
+import (
+	"github.com/gofrs/uuid/v5"
+)
+
 type Device struct {
-	WWN string `json:"wwn"`
+	ScrutinyUUID uuid.UUID `json:"scrutiny_uuid"`
+	WWN          string    `json:"wwn"`
 
 	DeviceName     string `json:"device_name"`
 	DeviceUUID     string `json:"device_uuid"`

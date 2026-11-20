@@ -8,6 +8,7 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
+	"github.com/gofrs/uuid/v5"
 	"gorm.io/gorm/clause"
 )
 
@@ -19,7 +20,7 @@ import (
 // update device fields that may change: (DeviceType, HostID)
 func (sr *scrutinyRepository) RegisterDevice(ctx context.Context, dev models.Device) error {
 	if err := sr.gormClient.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "wwn"}},
+		Columns:   []clause.Column{{Name: "scrutiny_uuid"}},
 		DoUpdates: clause.AssignmentColumns([]string{"host_id", "device_name", "device_type", "device_uuid", "device_serial_id", "device_label"}),
 	}).Create(&dev).Error; err != nil {
 		return err
@@ -38,9 +39,9 @@ func (sr *scrutinyRepository) GetDevices(ctx context.Context) ([]models.Device, 
 }
 
 // update device (only metadata) from collector
-func (sr *scrutinyRepository) UpdateDevice(ctx context.Context, wwn string, collectorSmartData collector.SmartInfo) (models.Device, error) {
+func (sr *scrutinyRepository) UpdateDevice(ctx context.Context, scrutiny_uuid uuid.UUID, collectorSmartData collector.SmartInfo) (models.Device, error) {
 	var device models.Device
-	if err := sr.gormClient.WithContext(ctx).Where("wwn = ?", wwn).First(&device).Error; err != nil {
+	if err := sr.gormClient.WithContext(ctx).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).First(&device).Error; err != nil {
 		return device, fmt.Errorf("could not get device from DB: %v", err)
 	}
 
@@ -53,20 +54,32 @@ func (sr *scrutinyRepository) UpdateDevice(ctx context.Context, wwn string, coll
 }
 
 // Update Device Status
-func (sr *scrutinyRepository) UpdateDeviceStatus(ctx context.Context, wwn string, status pkg.DeviceStatus) (models.Device, error) {
+// The provided status reflects the latest full SMART analysis and replaces the previous value
+// outright, so a device that recovers (clean SMART data) is reset from failed back to passing.
+func (sr *scrutinyRepository) UpdateDeviceStatus(ctx context.Context, scrutiny_uuid uuid.UUID, status pkg.DeviceStatus) (models.Device, error) {
 	var device models.Device
-	if err := sr.gormClient.WithContext(ctx).Where("wwn = ?", wwn).First(&device).Error; err != nil {
+	if err := sr.gormClient.WithContext(ctx).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).First(&device).Error; err != nil {
 		return device, fmt.Errorf("could not get device from DB: %v", err)
 	}
 
-	device.DeviceStatus = pkg.DeviceStatusSet(device.DeviceStatus, status)
-	return device, sr.gormClient.Model(&device).Updates(device).Error
+	device.DeviceStatus = status
+	// Use an explicit column update rather than Updates(device): GORM skips zero-valued struct
+	// fields, so a passing (zero) status would otherwise never overwrite a stored failed status.
+	return device, sr.gormClient.Model(&device).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).Update("device_status", status).Error
 }
 
-func (sr *scrutinyRepository) GetDeviceDetails(ctx context.Context, wwn string) (models.Device, error) {
+func (sr *scrutinyRepository) UpdateDeviceEstimatedUploadPeriod(ctx context.Context, scrutiny_uuid uuid.UUID, period time.Duration) error {
+	return sr.gormClient.WithContext(ctx).Model(&models.Device{}).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).Update("estimated_upload_period", period).Error
+}
+
+func (sr *scrutinyRepository) UpdateDeviceFriendlyName(ctx context.Context, scrutiny_uuid uuid.UUID, friendlyName string) error {
+	return sr.gormClient.WithContext(ctx).Model(&models.Device{}).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).Update("friendly_name", friendlyName).Error
+}
+
+func (sr *scrutinyRepository) GetDeviceDetails(ctx context.Context, scrutiny_uuid uuid.UUID) (models.Device, error) {
 	var device models.Device
 
-	if err := sr.gormClient.WithContext(ctx).Where("wwn = ?", wwn).First(&device).Error; err != nil {
+	if err := sr.gormClient.WithContext(ctx).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).First(&device).Error; err != nil {
 		return models.Device{}, err
 	}
 
@@ -74,17 +87,17 @@ func (sr *scrutinyRepository) GetDeviceDetails(ctx context.Context, wwn string) 
 }
 
 // Update Device Archived State
-func (sr *scrutinyRepository) UpdateDeviceArchived(ctx context.Context, wwn string, archived bool) error {
+func (sr *scrutinyRepository) UpdateDeviceArchived(ctx context.Context, scrutiny_uuid uuid.UUID, archived bool) error {
 	var device models.Device
-	if err := sr.gormClient.WithContext(ctx).Where("wwn = ?", wwn).First(&device).Error; err != nil {
+	if err := sr.gormClient.WithContext(ctx).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).First(&device).Error; err != nil {
 		return fmt.Errorf("could not get device from DB: %v", err)
 	}
 
-	return sr.gormClient.Model(&device).Where("wwn = ?", wwn).Update("archived", archived).Error
+	return sr.gormClient.Model(&device).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).Update("archived", archived).Error
 }
 
-func (sr *scrutinyRepository) DeleteDevice(ctx context.Context, wwn string) error {
-	if err := sr.gormClient.WithContext(ctx).Where("wwn = ?", wwn).Delete(&models.Device{}).Error; err != nil {
+func (sr *scrutinyRepository) DeleteDevice(ctx context.Context, scrutiny_uuid uuid.UUID) error {
+	if err := sr.gormClient.WithContext(ctx).Where("scrutiny_uuid = ?", scrutiny_uuid.String()).Delete(&models.Device{}).Error; err != nil {
 		return err
 	}
 
@@ -97,14 +110,14 @@ func (sr *scrutinyRepository) DeleteDevice(ctx context.Context, wwn string) erro
 	}
 
 	for _, bucket := range buckets {
-		sr.logger.Infof("Deleting data for %s in bucket: %s", wwn, bucket)
+		sr.logger.Infof("Deleting data for %s in bucket: %s", scrutiny_uuid.String(), bucket)
 		if err := sr.influxClient.DeleteAPI().DeleteWithName(
 			ctx,
 			sr.appConfig.GetString("web.influxdb.org"),
 			bucket,
 			time.Now().AddDate(-10, 0, 0),
 			time.Now(),
-			fmt.Sprintf(`device_wwn="%s"`, wwn),
+			fmt.Sprintf(`scrutiny_uuid="%s"`, scrutiny_uuid.String()),
 		); err != nil {
 			return err
 		}

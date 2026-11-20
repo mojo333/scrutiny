@@ -44,6 +44,8 @@ func (c *configuration) Init() error {
 
 	c.SetDefault("api.endpoint", "http://localhost:8080")
 
+	c.SetDefault("notify.on_smartctl_error", true)
+
 	c.SetDefault("commands.metrics_smartctl_bin", "smartctl")
 	c.SetDefault("commands.metrics_scan_args", "--scan --json")
 	c.SetDefault("commands.metrics_info_args", "--info --json")
@@ -118,6 +120,7 @@ func (c *configuration) ValidateConfig() error {
 	}
 
 	errorStrings := []string{}
+
 	for configKey, commandArgString := range commandArgStrings {
 		args := strings.Fields(commandArgString)
 		//ensure that the args string contains `--json` or `-j` flag

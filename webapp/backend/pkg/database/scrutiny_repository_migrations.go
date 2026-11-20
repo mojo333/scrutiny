@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/analogj/scrutiny/collector/pkg/detect"
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20201107210306"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20220503120000"
@@ -14,6 +16,9 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20250221084400"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20251108044508"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20260108000000"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20260216155600"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20261021120000"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20261021150000"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models"
 	_ "github.com/glebarez/sqlite"
 	"github.com/go-gormigrate/gormigrate/v2"
@@ -434,6 +439,94 @@ func (sr *scrutinyRepository) Migrate(ctx context.Context) error {
 					&m20260108000000.ZFSPool{},
 					&m20260108000000.ZFSVdev{},
 				)
+			},
+		},
+		{
+			ID: "m20260216155600", // add ScrutinyUUID as primary key
+			Migrate: func(tx *gorm.DB) error {
+				wwnToUUID := make(map[string]string)
+				devices := []m20260216155600.Device{}
+				if err := tx.Find(&devices).Error; err != nil {
+					return err
+				}
+				sr.logger.Debug("Generating Scrutiny UUIDs")
+				for i := range devices {
+					device := &devices[i]
+					newWWN := device.WWN
+
+					// Fix disks with old serial-based fallback WWN so UUID will be accurate.
+					if len(device.WWN) > 0 && device.WWN == strings.ToLower(device.SerialNumber) {
+						newWWN = ""
+					}
+
+					// Generate UUID with temporary WWN
+					device.ScrutinyUUID = detect.GenerateScrutinyUUID(device.ModelName, device.SerialNumber, newWWN)
+
+					// Add UUID to map with old WWN before we lose it
+					wwnToUUID[device.WWN] = device.ScrutinyUUID.String()
+
+					// Finally reset old fallback WWNs
+					if len(newWWN) == 0 {
+						device.WWN = ""
+					}
+				}
+
+				// sqlite doesn't support altering columns
+				// so we have to create a new one, drop the old one, then rename.
+				sr.logger.Debug("Creating new devices table")
+				if err := tx.Table("devices_new").AutoMigrate(&m20260216155600.Device{}); err != nil {
+					return err
+				}
+				if len(devices) > 0 {
+					if err := tx.Table("devices_new").Create(&devices).Error; err != nil {
+						return err
+					}
+				}
+
+				sr.logger.Debug("Dropping old devices table")
+				if err := tx.Migrator().DropTable(&m20260216155600.Device{}); err != nil {
+					return err
+				}
+
+				sr.logger.Debug("Renaming new device table")
+				if err := tx.Migrator().RenameTable("devices_new", "devices"); err != nil {
+					return err
+				}
+
+				// Migrate WWN -> UUID in influxdb
+				err := m20260216155600_ChangeInfluxDBTags(sr, ctx, wwnToUUID)
+				if ignorePastRetentionPolicyError(err) != nil {
+					return err
+				}
+
+				return nil
+			},
+		},
+		{
+			ID: "m20261021120000", // add estimated_upload_period to device data
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(m20261021120000.Device{})
+			},
+		},
+		{
+			ID: "m20261021150000", // add friendly_name to device data
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(m20261021150000.Device{})
+			},
+		},
+		{
+			ID: "m20261025120000", // add dashboard_temperature_duration setting.
+			Migrate: func(tx *gorm.DB) error {
+				//add dashboard_temperature_duration setting default.
+				var defaultSettings = []m20220716214900.Setting{
+					{
+						SettingKeyName:        "dashboard_temperature_duration",
+						SettingKeyDescription: "Default duration of the dashboard temperature chart ('day' | 'week' | 'month' | 'year' | 'forever')",
+						SettingDataType:       "string",
+						SettingValueString:    DURATION_KEY_WEEK,
+					},
+				}
+				return tx.Create(&defaultSettings).Error
 			},
 		},
 	})

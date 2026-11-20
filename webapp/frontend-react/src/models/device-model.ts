@@ -2,6 +2,7 @@
 export interface DeviceModel {
     archived?: boolean;
     muted: boolean;
+    scrutiny_uuid: string;
     wwn: string;
     device_name?: string;
     device_uuid?: string;
@@ -23,6 +24,7 @@ export interface DeviceModel {
 
     label: string;
     host_id: string;
+    friendly_name?: string;
 
     device_status: number;
 }

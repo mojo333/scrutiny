@@ -40,7 +40,7 @@ jobs:
     # Service containers to run with `build` (Required for end-to-end testing)
     services:
       influxdb:
-        image: influxdb:2.2
+        image: influxdb:2.8
         env:
           DOCKER_INFLUXDB_INIT_MODE: setup
           DOCKER_INFLUXDB_INIT_USERNAME: admin
@@ -143,3 +143,30 @@ jobs:
             scrutiny-web-*
             scrutiny-collector-metrics-*
             scrutiny-collector-zfs-*
+
+  makefile-docker-omnibus:
+    name: Build Docker Omnibus From Makefile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build
+        run: make docker-omnibus
+
+  makefile-docker-web:
+    name: Build Docker Web From Makefile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build
+        run: make docker-web
+
+  makefile-docker-collector:
+    name: Build Docker Collector From Makefile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build
+        run: make docker-collector

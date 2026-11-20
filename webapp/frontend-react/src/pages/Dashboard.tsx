@@ -209,7 +209,7 @@ export function Dashboard() {
               {hostId && <h3 className="ml-4 w-full text-2xl font-bold mb-0 mt-2">{hostId}</h3>}
               <div className="flex flex-wrap w-full">
                 {sortedDevices.map((deviceSummary) => (
-                  <div key={deviceSummary.device.wwn} className="flex gt-sm:w-1/2 min-w-80 p-4">
+                  <div key={deviceSummary.device.scrutiny_uuid} className="flex gt-sm:w-1/2 min-w-80 p-4">
                     <DeviceCard
                       deviceSummary={deviceSummary}
                       config={config}

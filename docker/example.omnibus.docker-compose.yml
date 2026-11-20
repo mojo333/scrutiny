@@ -1,10 +1,8 @@
-version: '3.5'
-
 services:
   scrutiny:
     restart: unless-stopped
     container_name: scrutiny
-    image: ghcr.io/analogj/scrutiny:master-omnibus
+    image: ghcr.io/analogj/scrutiny:nightly-omnibus
     cap_add:
       - SYS_RAWIO
     ports:
