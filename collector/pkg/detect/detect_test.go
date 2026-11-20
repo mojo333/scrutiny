@@ -246,6 +246,46 @@ func TestDetect_TransformDetectedDevices_Simple(t *testing.T) {
 	require.Equal(t, "sat+megaraid", transformedDevices[0].DeviceType)
 }
 
+func TestDetect_TransformDetectedDevices_PreservesOverrideDeviceFileCase(t *testing.T) {
+	// setup
+	mockCtrl := gomock.NewController(t)
+	fakeConfig := mock_config.NewMockInterface(mockCtrl)
+	fakeConfig.EXPECT().GetString("host.id").AnyTimes().Return("")
+	fakeConfig.EXPECT().GetString("commands.metrics_smartctl_bin").AnyTimes().Return("smartctl")
+	fakeConfig.EXPECT().GetString("commands.metrics_scan_args").AnyTimes().Return("--scan --json")
+	fakeConfig.EXPECT().GetDeviceOverrides().AnyTimes().Return([]models.ScanOverride{
+		{Device: "/dev/disk/by-id/ata-Samsung_SSD_850_EVO_1TB_S2RFNX0J", DeviceType: []string{"sat"}},
+		{Device: "/dev/SDA", DeviceType: []string{"sat+megaraid"}},
+	})
+	fakeConfig.EXPECT().IsAllowlistedDevice(gomock.Any()).AnyTimes().Return(true)
+	detectedDevices := models.Scan{
+		Devices: []models.ScanDevice{
+			{
+				Name:     "/dev/sda",
+				InfoName: "/dev/sda",
+				Protocol: "ata",
+				Type:     "ata",
+			},
+		},
+	}
+
+	d := detect.Detect{
+		Config: fakeConfig,
+	}
+
+	// test
+	transformedDevices := d.TransformDetectedDevices(detectedDevices)
+
+	// assert
+	deviceTypes := map[string]string{}
+	for _, transformedDevice := range transformedDevices {
+		deviceTypes[transformedDevice.DeviceName] = transformedDevice.DeviceType
+	}
+	require.Equal(t, 2, len(transformedDevices))
+	require.Equal(t, "sat", deviceTypes["disk/by-id/ata-Samsung_SSD_850_EVO_1TB_S2RFNX0J"])
+	require.Equal(t, "sat+megaraid", deviceTypes["sda"])
+}
+
 // test https://github.com/AnalogJ/scrutiny/issues/255#issuecomment-1164024126
 func TestDetect_TransformDetectedDevices_WithoutDeviceTypeOverride(t *testing.T) {
 	// setup
@@ -357,9 +397,11 @@ func TestDetect_SmartCtlInfo(t *testing.T) {
 			someCapacity       int64 = 3840755982336
 		)
 
+		fullDeviceName := detect.DevicePrefix() + someDeviceName
+
 		fakeConfig := mock_config.NewMockInterface(ctrl)
 		fakeConfig.EXPECT().
-			GetCommandMetricsInfoArgs("/dev/" + someDeviceName).
+			GetCommandMetricsInfoArgs(fullDeviceName).
 			Return(someArgs)
 		fakeConfig.EXPECT().
 			GetString("commands.metrics_smartctl_bin").
@@ -372,7 +414,7 @@ func TestDetect_SmartCtlInfo(t *testing.T) {
 
 		fakeShell := mock_shell.NewMockInterface(ctrl)
 		fakeShell.EXPECT().
-			Command(someLogger, "smartctl", append(strings.Split(someArgs, " "), "/dev/"+someDeviceName), "", gomock.Any()).
+			Command(someLogger, "smartctl", append(strings.Split(someArgs, " "), fullDeviceName), "", gomock.Any()).
 			Return(string(smartctlInfoResults), err)
 
 		d := detect.Detect{
@@ -396,4 +438,155 @@ func TestDetect_SmartCtlInfo(t *testing.T) {
 		assert.Equal(t, someDeviceType, someDevice.DeviceType)
 		assert.Equal(t, someCapacity, someDevice.Capacity)
 	})
+
+	t.Run("should keep the configured device type", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+
+		const (
+			someArgs = "--info --json"
+
+			someDeviceName = "sda"
+			// raid members are addressed via the controller; smartctl reports "sat"
+			someDeviceType = "aacraid,0,0,1"
+		)
+
+		fullDeviceName := detect.DevicePrefix() + someDeviceName
+
+		fakeConfig := mock_config.NewMockInterface(ctrl)
+		fakeConfig.EXPECT().
+			GetCommandMetricsInfoArgs(fullDeviceName).
+			Return(someArgs)
+		fakeConfig.EXPECT().
+			GetString("commands.metrics_smartctl_bin").
+			Return("smartctl")
+
+		someLogger := logrus.WithFields(logrus.Fields{})
+
+		smartctlInfoResults, err := os.ReadFile("testdata/smartctl_info_sata_smart_support_bool.json")
+		require.NoError(t, err)
+
+		expectedArgs := append(strings.Split(someArgs, " "), "--device", someDeviceType, fullDeviceName)
+
+		fakeShell := mock_shell.NewMockInterface(ctrl)
+		fakeShell.EXPECT().
+			Command(someLogger, "smartctl", expectedArgs, "", gomock.Any()).
+			Return(string(smartctlInfoResults), nil)
+
+		d := detect.Detect{
+			Logger: someLogger,
+			Shell:  fakeShell,
+			Config: fakeConfig,
+		}
+
+		someDevice := &models.Device{
+			DeviceName: someDeviceName,
+			DeviceType: someDeviceType,
+		}
+
+		require.NoError(t, d.SmartCtlInfo(someDevice))
+
+		assert.Equal(t, someDeviceType, someDevice.DeviceType)
+	})
+
+	for _, tt := range []struct {
+		name     string
+		filename string
+	}{
+		{
+			name:     "should report smart support from legacy boolean",
+			filename: "smartctl_info_sata_smart_support_bool.json",
+		},
+		{
+			name:     "should report smart support from object",
+			filename: "smartctl_info_sata_smart_support_object.json",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			const (
+				someArgs       = "--info --json"
+				someDeviceName = "sata1"
+			)
+
+			fullDeviceName := detect.DevicePrefix() + someDeviceName
+
+			fakeConfig := mock_config.NewMockInterface(ctrl)
+			fakeConfig.EXPECT().
+				GetCommandMetricsInfoArgs(fullDeviceName).
+				Return(someArgs)
+			fakeConfig.EXPECT().
+				GetString("commands.metrics_smartctl_bin").
+				Return("smartctl")
+
+			someLogger := logrus.WithFields(logrus.Fields{})
+
+			smartctlInfoResults, err := os.ReadFile("testdata/" + tt.filename)
+			require.NoError(t, err)
+
+			fakeShell := mock_shell.NewMockInterface(ctrl)
+			fakeShell.EXPECT().
+				Command(someLogger, "smartctl", append(strings.Split(someArgs, " "), fullDeviceName), "", gomock.Any()).
+				Return(string(smartctlInfoResults), nil)
+
+			d := detect.Detect{
+				Logger: someLogger,
+				Shell:  fakeShell,
+				Config: fakeConfig,
+			}
+
+			someDevice := &models.Device{
+				DeviceName: someDeviceName,
+			}
+
+			require.NoError(t, d.SmartCtlInfo(someDevice))
+
+			assert.True(t, someDevice.SmartSupport)
+		})
+	}
+}
+
+func TestDetect_SmartCtlInfo_ConfiguredDeviceType(t *testing.T) {
+	for _, tt := range []struct {
+		name                  string
+		deviceType            string
+		hasDeviceTypeOverride bool
+		expectedArgs          []string
+	}{
+		{"should drop a scanned scsi type", "scsi", false, []string{"--info", "--json"}},
+		{"should keep a configured scsi type", "scsi", true, []string{"--info", "--json", "--device", "scsi"}},
+		{"should keep a scanned non-standard type", "megaraid,14", false, []string{"--info", "--json", "--device", "megaraid,14"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			const someDeviceName = "sda"
+
+			fullDeviceName := detect.DevicePrefix() + someDeviceName
+
+			fakeConfig := mock_config.NewMockInterface(ctrl)
+			fakeConfig.EXPECT().GetCommandMetricsInfoArgs(fullDeviceName).Return("--info --json")
+			fakeConfig.EXPECT().GetString("commands.metrics_smartctl_bin").Return("smartctl")
+			//only consulted for a scsi/ata type; the argv below is what the test pins
+			fakeConfig.EXPECT().HasDeviceTypeOverride(fullDeviceName).AnyTimes().Return(tt.hasDeviceTypeOverride)
+
+			someLogger := logrus.WithFields(logrus.Fields{})
+
+			smartctlInfoResults, err := os.ReadFile("testdata/smartctl_info_sata_smart_support_bool.json")
+			require.NoError(t, err)
+
+			fakeShell := mock_shell.NewMockInterface(ctrl)
+			fakeShell.EXPECT().
+				Command(someLogger, "smartctl", append(tt.expectedArgs, fullDeviceName), "", gomock.Any()).
+				Return(string(smartctlInfoResults), nil)
+
+			d := detect.Detect{
+				Logger: someLogger,
+				Shell:  fakeShell,
+				Config: fakeConfig,
+			}
+
+			require.NoError(t, d.SmartCtlInfo(&models.Device{DeviceName: someDeviceName, DeviceType: tt.deviceType}))
+		})
+	}
 }

@@ -165,35 +165,38 @@ func (c *configuration) GetDeviceOverrides() []models.ScanOverride {
 	return c.deviceOverrides
 }
 
-func (c *configuration) GetCommandMetricsInfoArgs(deviceName string) string {
-	overrides := c.GetDeviceOverrides()
-
-	for _, deviceOverrides := range overrides {
-		if strings.EqualFold(deviceName, deviceOverrides.Device) {
-			//found matching device
-			if len(deviceOverrides.Commands.MetricsInfoArgs) > 0 {
-				return deviceOverrides.Commands.MetricsInfoArgs
-			} else {
-				return c.GetString("commands.metrics_info_args")
-			}
+func (c *configuration) getDeviceOverride(deviceName string) (models.ScanOverride, bool) {
+	//device files are matched case-insensitively, and the first entry for a device wins.
+	for _, deviceOverride := range c.GetDeviceOverrides() {
+		if strings.EqualFold(deviceName, deviceOverride.Device) {
+			return deviceOverride, true
 		}
 	}
+
+	return models.ScanOverride{}, false
+}
+
+// HasDeviceTypeOverride reports whether the device type was set in the config
+// file, rather than coming from smartctl --scan.
+func (c *configuration) HasDeviceTypeOverride(deviceName string) bool {
+	deviceOverride, found := c.getDeviceOverride(deviceName)
+
+	return found && len(deviceOverride.DeviceType) > 0
+}
+
+func (c *configuration) GetCommandMetricsInfoArgs(deviceName string) string {
+	if deviceOverride, found := c.getDeviceOverride(deviceName); found && len(deviceOverride.Commands.MetricsInfoArgs) > 0 {
+		return deviceOverride.Commands.MetricsInfoArgs
+	}
+
 	return c.GetString("commands.metrics_info_args")
 }
 
 func (c *configuration) GetCommandMetricsSmartArgs(deviceName string) string {
-	overrides := c.GetDeviceOverrides()
-
-	for _, deviceOverrides := range overrides {
-		if strings.EqualFold(deviceName, deviceOverrides.Device) {
-			//found matching device
-			if len(deviceOverrides.Commands.MetricsSmartArgs) > 0 {
-				return deviceOverrides.Commands.MetricsSmartArgs
-			} else {
-				return c.GetString("commands.metrics_smart_args")
-			}
-		}
+	if deviceOverride, found := c.getDeviceOverride(deviceName); found && len(deviceOverride.Commands.MetricsSmartArgs) > 0 {
+		return deviceOverride.Commands.MetricsSmartArgs
 	}
+
 	return c.GetString("commands.metrics_smart_args")
 }
 
@@ -204,7 +207,8 @@ func (c *configuration) IsAllowlistedDevice(deviceName string) bool {
 	}
 
 	for _, item := range allowList {
-		if item == deviceName {
+		// matched case-insensitively, like the device overrides
+		if strings.EqualFold(item, deviceName) {
 			return true
 		}
 	}
