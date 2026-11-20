@@ -195,12 +195,11 @@ func TestShouldNotify_MetricsStatusFilterAttributesCritical_MetricsStatusThresho
 	}}
 	statusThreshold := pkg.MetricsStatusThresholdSmart
 	notifyFilterAttributes := pkg.MetricsStatusFilterAttributesCritical
-	scrutinyUUID := uuid.Must(uuid.NewV4())
 	mockCtrl := gomock.NewController(t)
 	fakeDatabase := mock_database.NewMockDeviceRepo(mockCtrl)
 
 	//assert
-	require.True(t, ShouldNotify(logrus.StandardLogger(), device, smartAttrs, scrutinyUUID, statusThreshold, notifyFilterAttributes, true, &gin.Context{}, fakeDatabase))
+	require.True(t, ShouldNotify(logrus.StandardLogger(), device, smartAttrs, statusThreshold, notifyFilterAttributes, pkg.MetricsNotifyLevelFail, true, context.Background(), "", fakeDatabase))
 }
 
 func TestShouldNotify_NoRepeat_DatabaseFailure(t *testing.T) {

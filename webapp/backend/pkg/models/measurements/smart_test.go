@@ -526,8 +526,7 @@ func TestFromCollectorSmartInfo_Scsi_EnvironmentalTemperature(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	smartUUID := uuid.Must(uuid.NewV4())
-	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
+	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
 
 	//assert
 	require.NoError(t, err)

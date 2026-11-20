@@ -7,7 +7,6 @@ import (
 
 	mock_config "github.com/analogj/scrutiny/webapp/backend/pkg/config/mock"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
-	"github.com/gofrs/uuid/v5"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/stretchr/testify/require"
@@ -43,7 +42,7 @@ func Test_SaveSmartTemperature_CurrentTemperature(t *testing.T) {
 			writeAPI := &countingWriteAPI{}
 			deviceRepo := scrutinyRepository{influxWriteApi: writeAPI}
 
-			require.NoError(t, deviceRepo.SaveSmartTemperature(context.Background(), uuid.Must(uuid.NewV4()), "SCSI", smartInfo, false))
+			require.NoError(t, deviceRepo.SaveSmartTemperature(context.Background(), "0x5000c500deadbeef", "SCSI", smartInfo, false))
 			require.Equal(t, tt.expected, writeAPI.points)
 		})
 	}
