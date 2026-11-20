@@ -1,8 +1,8 @@
 package collector
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,10 +12,31 @@ import (
 	mock_shell "github.com/analogj/scrutiny/collector/pkg/common/shell/mock"
 	mock_config "github.com/analogj/scrutiny/collector/pkg/config/mock"
 	"github.com/analogj/scrutiny/collector/pkg/detect"
+	"github.com/analogj/scrutiny/collector/pkg/models"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+// helperCollectorErrorApi stands in for the webapp, capturing the collector errors reported to it.
+func helperCollectorErrorApi(t *testing.T) (*url.URL, chan collector.CollectorError) {
+	reported := make(chan collector.CollectorError, 1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var errorPayload collector.CollectorError
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&errorPayload))
+		reported <- errorPayload
+		_, _ = w.Write([]byte(`{"success": true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	apiEndpoint, err := url.Parse(server.URL + "/")
+	require.NoError(t, err)
+
+	return apiEndpoint, reported
+}
 
 func TestApiEndpointParse(t *testing.T) {
 	baseURL, _ := url.Parse("http://localhost:8080/")
@@ -71,6 +92,8 @@ func TestMetricsCollector_Collect_ConfiguredDeviceType(t *testing.T) {
 			fakeConfig.EXPECT().GetString("commands.metrics_smartctl_bin").Return("smartctl")
 			//only consulted for a scsi/ata type; the argv below is what the test pins
 			fakeConfig.EXPECT().HasDeviceTypeOverride(fullDeviceName).AnyTimes().Return(tt.hasDeviceTypeOverride)
+			fakeConfig.EXPECT().GetString("host.id").AnyTimes().Return("testhost")
+			fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
 
 			someLogger := logrus.WithFields(logrus.Fields{})
 
@@ -79,54 +102,7 @@ func TestMetricsCollector_Collect_ConfiguredDeviceType(t *testing.T) {
 				Command(someLogger, "smartctl", append(tt.expectedArgs, fullDeviceName), "", gomock.Any()).
 				Return("", errors.New("smartctl is not available in tests"))
 
-			mc := MetricsCollector{
-				config:        fakeConfig,
-				BaseCollector: BaseCollector{logger: someLogger},
-				shell:         fakeShell,
-			}
-
-			mc.Collect("0x5000c500deadbeef", someDeviceName, tt.deviceType)
-		})
-	}
-}
-
-func helperExitError(t *testing.T, code int) error {
-	err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
-	require.IsType(t, &exec.ExitError{}, err)
-	return err
-}
-
-func TestMetricsCollector_Collect_PublishesOnlyCompleteResults(t *testing.T) {
-	for _, tt := range []struct {
-		name          string
-		smartctlErr   func(t *testing.T) error
-		shouldPublish bool
-	}{
-		{"publishes a successful run", func(t *testing.T) error { return nil }, true},
-		{"publishes a failing disk report", func(t *testing.T) error { return helperExitError(t, 0x08) }, true},
-		{"publishes despite a SMART checksum error", func(t *testing.T) error { return helperExitError(t, 0x04) }, true},
-		{"skips when the device could not be opened", func(t *testing.T) error { return helperExitError(t, 0x02) }, false},
-		{"skips when the commandline did not parse", func(t *testing.T) error { return helperExitError(t, 0x01) }, false},
-		{"skips when smartctl was killed", func(t *testing.T) error { return &exec.ExitError{} }, false},
-		{"skips when smartctl could not run", func(t *testing.T) error { return errors.New("not found") }, false},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			const someDeviceName = "sda"
-			fullDeviceName := detect.DevicePrefix() + someDeviceName
-
-			fakeConfig := mock_config.NewMockInterface(ctrl)
-			fakeConfig.EXPECT().GetCommandMetricsSmartArgs(fullDeviceName).Return("--xall --json")
-			fakeConfig.EXPECT().GetString("commands.metrics_smartctl_bin").Return("smartctl")
-
-			someLogger := logrus.WithFields(logrus.Fields{})
-			fakeShell := mock_shell.NewMockInterface(ctrl)
-			fakeShell.EXPECT().Command(someLogger, "smartctl", gomock.Any(), "", gomock.Any()).Return("{}", tt.smartctlErr(t))
-
-			published := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { published++ }))
-			defer server.Close()
-			apiEndpoint, _ := url.Parse(server.URL + "/")
+			apiEndpoint, reported := helperCollectorErrorApi(t)
 
 			mc := MetricsCollector{
 				config:        fakeConfig,
@@ -135,9 +111,69 @@ func TestMetricsCollector_Collect_PublishesOnlyCompleteResults(t *testing.T) {
 				shell:         fakeShell,
 			}
 
-			mc.Collect("0x5000c500deadbeef", someDeviceName, "")
+			mc.Collect(uuid.Must(uuid.NewV4()), someDeviceName, tt.deviceType)
 
-			require.Equal(t, tt.shouldPublish, published == 1)
+			//smartctl could not be run at all, so the failure is reported rather than swallowed
+			require.Equal(t, someDeviceName, (<-reported).DeviceName)
 		})
 	}
+}
+
+func TestMetricsCollector_ReportError_NotifyDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	const someDeviceName = "sda"
+
+	fakeConfig := mock_config.NewMockInterface(ctrl)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").Return(false)
+
+	apiEndpoint, reported := helperCollectorErrorApi(t)
+
+	mc := MetricsCollector{
+		config:        fakeConfig,
+		BaseCollector: BaseCollector{logger: logrus.WithFields(logrus.Fields{})},
+		apiEndpoint:   apiEndpoint,
+	}
+
+	mc.ReportError(models.Device{DeviceName: someDeviceName}, errors.New("smartctl could not open the device"))
+
+	//nothing reaches the api server, so the user is not notified
+	require.Empty(t, reported)
+}
+
+func TestMetricsCollector_Collect_SignalledSmartctl(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	const someDeviceName = "sda"
+	fullDeviceName := detect.DevicePrefix() + someDeviceName
+
+	fakeConfig := mock_config.NewMockInterface(ctrl)
+	fakeConfig.EXPECT().GetCommandMetricsSmartArgs(fullDeviceName).Return("--xall --json")
+	fakeConfig.EXPECT().GetString("commands.metrics_smartctl_bin").Return("smartctl")
+	fakeConfig.EXPECT().HasDeviceTypeOverride(fullDeviceName).AnyTimes().Return(false)
+	fakeConfig.EXPECT().GetString("host.id").AnyTimes().Return("testhost")
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+
+	someLogger := logrus.WithFields(logrus.Fields{})
+
+	signalled := &exec.ExitError{}
+	require.Equal(t, -1, signalled.ExitCode())
+
+	fakeShell := mock_shell.NewMockInterface(ctrl)
+	fakeShell.EXPECT().
+		Command(someLogger, "smartctl", []string{"--xall", "--json", fullDeviceName}, "", gomock.Any()).
+		Return("", signalled)
+
+	apiEndpoint, reported := helperCollectorErrorApi(t)
+
+	mc := MetricsCollector{
+		config:        fakeConfig,
+		BaseCollector: BaseCollector{logger: someLogger},
+		apiEndpoint:   apiEndpoint,
+		shell:         fakeShell,
+	}
+
+	mc.Collect(uuid.Must(uuid.NewV4()), someDeviceName, "")
+
+	require.Equal(t, someDeviceName, (<-reported).DeviceName)
 }

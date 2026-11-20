@@ -1,6 +1,5 @@
 .ONESHELL: # Applies to every targets in the file! .ONESHELL instructs make to invoke a single instance of the shell and provide it with the entire recipe, regardless of how many lines it contains.
 .SHELLFLAGS = -ec
-export GOTOOLCHAIN=go1.25.5
 
 ########################################################################################################################
 # Global Env Settings
@@ -74,7 +73,7 @@ binary-test: binary-dep
 
 .PHONY: lint
 lint:
-	GOTOOLCHAIN=go1.25.5 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.8.0
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 	golangci-lint run ./...
 
 .PHONY: binary-test-coverage
@@ -138,17 +137,16 @@ binary-frontend-test-coverage:
 ########################################################################################################################
 # Docker
 # NOTE: these docker make targets are only used for local development (not used by Github Actions/CI)
-# NOTE: docker-web and docker-omnibus require `make binary-frontend` or frontend.tar.gz content in /dist before executing.
 ########################################################################################################################
 .PHONY: docker-collector
 docker-collector:
 	@echo "building collector docker image"
-	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile.collector -t analogj/scrutiny-dev:collector .
+	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile.collector -t ghcr.io/analogj/scrutiny-dev:collector .
 
 .PHONY: docker-web
 docker-web:
 	@echo "building web docker image"
-	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile.web -t analogj/scrutiny-dev:web .
+	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile.web -t ghcr.io/analogj/scrutiny-dev:web .
 
 .PHONY: docker-collector-zfs
 docker-collector-zfs:
@@ -158,4 +156,4 @@ docker-collector-zfs:
 .PHONY: docker-omnibus
 docker-omnibus:
 	@echo "building omnibus docker image"
-	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile -t analogj/scrutiny-dev:omnibus .
+	docker build $(DOCKER_TARGETARCH_BUILD_ARG) -f docker/Dockerfile -t ghcr.io/analogj/scrutiny-dev:omnibus .

@@ -7,6 +7,7 @@ import (
 
 	mock_config "github.com/analogj/scrutiny/webapp/backend/pkg/config/mock"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
+	"github.com/gofrs/uuid/v5"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/stretchr/testify/require"
@@ -42,7 +43,7 @@ func Test_SaveSmartTemperature_CurrentTemperature(t *testing.T) {
 			writeAPI := &countingWriteAPI{}
 			deviceRepo := scrutinyRepository{influxWriteApi: writeAPI}
 
-			require.NoError(t, deviceRepo.SaveSmartTemperature(context.Background(), "0x5000c500deadbeef", "SCSI", smartInfo, false))
+			require.NoError(t, deviceRepo.SaveSmartTemperature(context.Background(), uuid.Must(uuid.NewV4()), "SCSI", smartInfo, false))
 			require.Equal(t, tt.expected, writeAPI.points)
 		})
 	}
@@ -72,12 +73,28 @@ weekData = from(bucket: "metrics")
 |> range(start: -1w, stop: now())
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 weekData
 |> schema.fieldsAsCols()
 |> yield()`, influxDbScript)
+}
+
+func Test_aggregateTempQuery_UnknownDurationUsesWeek(t *testing.T) {
+	t.Parallel()
+
+	mockCtrl := gomock.NewController(t)
+	fakeConfig := mock_config.NewMockInterface(mockCtrl)
+	fakeConfig.EXPECT().GetString("web.influxdb.bucket").Return("metrics").AnyTimes()
+
+	deviceRepo := scrutinyRepository{
+		appConfig: fakeConfig,
+	}
+
+	week := deviceRepo.aggregateTempQuery(DURATION_KEY_WEEK)
+	require.Equal(t, week, deviceRepo.aggregateTempQuery("bogus"))
+	require.Equal(t, week, deviceRepo.aggregateTempQuery(""))
 }
 
 func Test_aggregateTempQuery_Month(t *testing.T) {
@@ -104,18 +121,18 @@ weekData = from(bucket: "metrics")
 |> range(start: -1w, stop: now())
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 monthData = from(bucket: "metrics_weekly")
 |> range(start: -1mo, stop: -1w)
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 union(tables: [weekData, monthData])
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> sort(columns: ["_time"], desc: false)
 |> schema.fieldsAsCols()`, influxDbScript)
 }
@@ -144,25 +161,25 @@ weekData = from(bucket: "metrics")
 |> range(start: -1w, stop: now())
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 monthData = from(bucket: "metrics_weekly")
 |> range(start: -1mo, stop: -1w)
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 yearData = from(bucket: "metrics_monthly")
 |> range(start: -1y, stop: -1mo)
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 union(tables: [weekData, monthData, yearData])
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> sort(columns: ["_time"], desc: false)
 |> schema.fieldsAsCols()`, influxDbScript)
 }
@@ -191,32 +208,32 @@ weekData = from(bucket: "metrics")
 |> range(start: -1w, stop: now())
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 monthData = from(bucket: "metrics_weekly")
 |> range(start: -1mo, stop: -1w)
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 yearData = from(bucket: "metrics_monthly")
 |> range(start: -1y, stop: -1mo)
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 foreverData = from(bucket: "metrics_yearly")
 |> range(start: -10y, stop: -1y)
 |> filter(fn: (r) => r["_measurement"] == "temp" )
 |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 
 union(tables: [weekData, monthData, yearData, foreverData])
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> sort(columns: ["_time"], desc: false)
 |> schema.fieldsAsCols()`, influxDbScript)
 }

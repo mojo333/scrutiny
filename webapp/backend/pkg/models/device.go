@@ -5,6 +5,7 @@ import (
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
+	"github.com/gofrs/uuid/v5"
 )
 
 type DeviceWrapper struct {
@@ -21,7 +22,7 @@ type Device struct {
 	UpdatedAt time.Time
 	DeletedAt *time.Time
 
-	WWN string `json:"wwn" gorm:"primary_key"`
+	WWN string `json:"wwn"`
 
 	DeviceName     string `json:"device_name"`
 	DeviceUUID     string `json:"device_uuid"`
@@ -42,11 +43,16 @@ type Device struct {
 	DeviceType     string `json:"device_type"`     //device type is used for querying with -d/t flag, should only be used by collector.
 
 	// User provided metadata
-	Label  string `json:"label"`
-	HostId string `json:"host_id"`
+	Label        string `json:"label"`
+	HostId       string `json:"host_id"`
+	FriendlyName string `json:"friendly_name" gorm:"not null;default:''"`
 
 	// Data set by Scrutiny
 	DeviceStatus pkg.DeviceStatus `json:"device_status"`
+	ScrutinyUUID uuid.UUID        `json:"scrutiny_uuid" gorm:"primaryKey;uniqueIndex"`
+
+	// time between uploads as estimated by the missed upload tracker, 0 if unknown
+	EstimatedUploadPeriod time.Duration `json:"-" gorm:"not null;default:0"`
 }
 
 func (dv *Device) IsAta() bool {
@@ -167,10 +173,6 @@ func (dv *Device) IsNvme() bool {
 func (dv *Device) UpdateFromCollectorSmartInfo(info collector.SmartInfo) error {
 	dv.Firmware = info.FirmwareVersion
 	dv.DeviceProtocol = info.Device.Protocol
-
-	if !info.SmartStatus.Passed {
-		dv.DeviceStatus = pkg.DeviceStatusSet(dv.DeviceStatus, pkg.DeviceStatusFailedSmart)
-	}
 
 	return nil
 }

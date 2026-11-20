@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -16,7 +17,7 @@ import (
 	"github.com/analogj/scrutiny/collector/pkg/errors"
 	"github.com/analogj/scrutiny/collector/pkg/models"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
-	"github.com/samber/lo"
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 )
 
@@ -63,17 +64,31 @@ func (mc *MetricsCollector) Run() error {
 		Logger: mc.logger,
 		Config: mc.config,
 	}
-	rawDetectedStorageDevices, err := deviceDetector.Start()
+	scannedDevices, err := deviceDetector.Scan()
 	if err != nil {
+		mc.ReportError(models.Device{}, err)
 		return err
 	}
 
-	//filter any device with empty wwn (they are invalid)
-	detectedStorageDevices := lo.Filter[models.Device](rawDetectedStorageDevices, func(dev models.Device, _ int) bool {
-		return len(dev.WWN) > 0
-	})
+	rawDetectedStorageDevices, infoErrors := deviceDetector.Info(scannedDevices)
+	for _, infoError := range infoErrors {
+		mc.ReportError(infoError.Device, infoError.Err)
+	}
 
-	mc.logger.Infoln("Sending detected devices to API, for filtering & validation")
+	// Ignore any device without a Scrutiny UUID. This should never happen...
+	detectedStorageDevices := make([]models.Device, 0, len(rawDetectedStorageDevices))
+	for _, device := range rawDetectedStorageDevices {
+		if device.ScrutinyUUID.IsNil() {
+			mc.logger.Errorf("Device %s has no scrutiny UUID; skipping (no data association possible).", device.DeviceName)
+			mc.logger.Debugf("Raw detected device: model=%q serial=%q wwn=%q ScrutinyUUID=%s",
+				device.ModelName, device.SerialNumber, device.WWN, device.ScrutinyUUID)
+			continue
+		}
+		detectedStorageDevices = append(detectedStorageDevices, device)
+	}
+
+	mc.logger.Infof("Sending %d/%d detected devices to API for filtering & validation",
+		len(detectedStorageDevices), len(rawDetectedStorageDevices))
 	jsonObj, _ := json.Marshal(detectedStorageDevices)
 	mc.logger.Debugf("Detected devices: %v", string(jsonObj))
 	err = mc.postJson(apiEndpoint.String(), models.DeviceWrapper{
@@ -94,7 +109,7 @@ func (mc *MetricsCollector) Run() error {
 			// execute collection in parallel go-routines
 			//wg.Add(1)
 			//go mc.Collect(&wg, device.WWN, device.DeviceName, device.DeviceType)
-			mc.Collect(device.WWN, device.DeviceName, device.DeviceType)
+			mc.Collect(device.ScrutinyUUID, device.DeviceName, device.DeviceType)
 
 			if mc.config.GetInt("commands.metrics_smartctl_wait") > 0 {
 				time.Sleep(time.Duration(mc.config.GetInt("commands.metrics_smartctl_wait")) * time.Second)
@@ -121,13 +136,17 @@ func (mc *MetricsCollector) Validate() error {
 }
 
 // func (mc *MetricsCollector) Collect(wg *sync.WaitGroup, deviceWWN string, deviceName string, deviceType string) {
-func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceType string) {
+func (mc *MetricsCollector) Collect(scrutiny_uuid uuid.UUID, deviceName string, deviceType string) {
 	//defer wg.Done()
-	if len(deviceWWN) == 0 {
-		mc.logger.Errorf("no device WWN detected for %s. Skipping collection for this device (no data association possible).\n", deviceName)
+	// Run() filters out devices with nil ScrutinyUUIDs before calling Collect, so this should never
+	// happen; guarded here in case Collect is called from elsewhere in the future.
+	if scrutiny_uuid.IsNil() {
+		mc.logger.Errorf("Device %s has no scrutiny UUID; skipping collection (no data association possible).", deviceName)
 		return
 	}
 	mc.logger.Infof("Collecting smartctl results for %s\n", deviceName)
+
+	device := models.Device{ScrutinyUUID: scrutiny_uuid, DeviceName: deviceName, DeviceType: deviceType}
 
 	fullDeviceName := fmt.Sprintf("%s%s", detect.DevicePrefix(), deviceName)
 	args := strings.Fields(mc.config.GetCommandMetricsSmartArgs(fullDeviceName))
@@ -147,12 +166,14 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 			mc.logger.Errorf("error while attempting to execute smartctl: %s\n", deviceName)
 			mc.logger.Errorf("ERROR MESSAGE: %v", err)
 			mc.logger.Errorf("IGNORING RESULT: %v", result)
+			mc.ReportError(device, err)
 			return
 		}
 
 		// killed processes return exit code -1, which we'd decode as all bits being set
 		if exitError.ExitCode() < 0 {
 			mc.logger.Errorf("smartctl was terminated before it could finish processing %s: %v", deviceName, exitError)
+			mc.ReportError(device, exitError)
 			return
 		}
 
@@ -160,7 +181,6 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 		mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
 		mc.LogSmartctlExitStatus(exitStatus)
 
-		// non-fatal bits (failing disk, error logs) still come with a complete report worth publishing
 		if exitStatus.IsFatal() {
 			if exitStatus == collector.SmartctlExitStatusFailDev && hasPowerModeCheck(args) {
 				mc.logger.Infof("%s is in a low power mode, skipping collection\n", deviceName)
@@ -168,13 +188,12 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 			}
 
 			mc.logger.Errorf("smartctl output for %s is incomplete, not publishing results\n", deviceName)
+			mc.ReportError(device, fmt.Errorf("smartctl exited with status %d: %s", exitError.ExitCode(), exitStatus))
 			return
 		}
 	}
 
-	if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
-		mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
-	}
+	mc.Publish(scrutiny_uuid, resultBytes)
 }
 
 // if -n is passed and the drive is asleep, smartctl will return an exit code
@@ -188,23 +207,50 @@ func hasPowerModeCheck(args []string) bool {
 	return false
 }
 
-func (mc *MetricsCollector) Publish(deviceWWN string, payload []byte) error {
-	mc.logger.Infof("Publishing smartctl results for %s\n", deviceWWN)
+func (mc *MetricsCollector) Publish(scrutinyUuid uuid.UUID, payload []byte) error {
+	mc.logger.Infof("Publishing smartctl results for %s\n", scrutinyUuid)
 
 	apiEndpoint, _ := url.Parse(mc.apiEndpoint.String())
-	apiEndpoint, _ = apiEndpoint.Parse(fmt.Sprintf("api/device/%s/smart", strings.ToLower(deviceWWN)))
+	apiEndpoint, _ = apiEndpoint.Parse(fmt.Sprintf("api/device/%s/smart", scrutinyUuid.String()))
 
 	resp, err := httpClient.Post(apiEndpoint.String(), "application/json", bytes.NewBuffer(payload))
 	if err != nil {
-		mc.logger.Errorf("An error occurred while publishing SMART data for device (%s): %v", deviceWWN, err)
+		mc.logger.Errorf("An error occurred while publishing SMART data for device (%s): %v", scrutinyUuid, err)
 		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
-		mc.logger.Errorf("An error occurred while publishing SMART data for device (%s): API returned HTTP %d", deviceWWN, resp.StatusCode)
-		return fmt.Errorf("publishing SMART data for device (%s) failed with HTTP %d", deviceWWN, resp.StatusCode)
+	//a non-200 would otherwise be reported as a successful publish
+	if resp.StatusCode != http.StatusOK {
+		mc.logger.Errorf("The API server rejected the SMART data for device (%s): %s", scrutinyUuid, resp.Status)
+		return errors.ApiServerCommunicationError(fmt.Sprintf("The API server rejected the SMART data for device (%s)", scrutinyUuid))
 	}
 
 	return nil
+}
+
+func (mc *MetricsCollector) ReportError(device models.Device, collectorErr error) {
+	if !mc.config.GetBool("notify.on_smartctl_error") {
+		mc.logger.Debugf("notify.on_smartctl_error is disabled for %q, not reporting: %v", device.DeviceName, collectorErr)
+		return
+	}
+
+	payload := collector.CollectorError{
+		HostId:     mc.config.GetString("host.id"),
+		DeviceName: device.DeviceName,
+		DeviceType: device.DeviceType,
+		Error:      collectorErr.Error(),
+	}
+	if !device.ScrutinyUUID.IsNil() {
+		payload.ScrutinyUUID = device.ScrutinyUUID.String()
+	}
+	mc.logger.Debugf("Reporting collector error to API: %v", payload)
+
+	apiEndpoint, _ := url.Parse(mc.apiEndpoint.String())
+	apiEndpoint, _ = apiEndpoint.Parse("api/collector/error")
+
+	response := models.DeviceWrapper{}
+	if err := mc.postJson(apiEndpoint.String(), payload, &response); err != nil {
+		mc.logger.Errorf("An error occurred while reporting a collector error to the API: %v", err)
+	}
 }

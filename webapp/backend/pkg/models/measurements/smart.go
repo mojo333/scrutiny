@@ -3,6 +3,7 @@ package measurements
 import (
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -10,17 +11,22 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/thresholds"
+	"github.com/gofrs/uuid/v5"
 )
 
 type Smart struct {
 	Date           time.Time `json:"date"`
-	DeviceWWN      string    `json:"device_wwn"` //(tag)
+	DeviceWWN      string    `json:"device_wwn"`    // deprecated
+	ScrutinyUUID   uuid.UUID `json:"scrutiny_uuid"` //(tag)
 	DeviceProtocol string    `json:"device_protocol"`
 
 	//Metrics (fields)
 	Temp            int64 `json:"temp"`
 	PowerOnHours    int64 `json:"power_on_hours"`
 	PowerCycleCount int64 `json:"power_cycle_count"`
+	// nil when the device doesn't report a unit-safe source for these totals
+	TotalBytesRead    *int64 `json:"total_bytes_read,omitempty"`
+	TotalBytesWritten *int64 `json:"total_bytes_written,omitempty"`
 
 	//Attributes (fields)
 	Attributes map[string]SmartAttribute `json:"attrs"`
@@ -31,7 +37,7 @@ type Smart struct {
 
 func (sm *Smart) Flatten() (tags map[string]string, fields map[string]interface{}) {
 	tags = map[string]string{
-		"device_wwn":      sm.DeviceWWN,
+		"scrutiny_uuid":   sm.ScrutinyUUID.String(),
 		"device_protocol": sm.DeviceProtocol,
 	}
 
@@ -39,6 +45,12 @@ func (sm *Smart) Flatten() (tags map[string]string, fields map[string]interface{
 		"temp":              sm.Temp,
 		"power_on_hours":    sm.PowerOnHours,
 		"power_cycle_count": sm.PowerCycleCount,
+	}
+	if sm.TotalBytesRead != nil {
+		fields["total_bytes_read"] = *sm.TotalBytesRead
+	}
+	if sm.TotalBytesWritten != nil {
+		fields["total_bytes_written"] = *sm.TotalBytesWritten
 	}
 
 	for _, attr := range sm.Attributes {
@@ -57,9 +69,13 @@ func NewSmartFromInfluxDB(attrs map[string]interface{}) (*Smart, error) {
 	if !dateOk {
 		return nil, fmt.Errorf("missing or invalid '_time' field in InfluxDB result")
 	}
-	smWWN, wwnOk := attrs["device_wwn"].(string)
-	if !wwnOk {
-		return nil, fmt.Errorf("missing or invalid 'device_wwn' field in InfluxDB result")
+	smUUIDString, uuidOk := attrs["scrutiny_uuid"].(string)
+	if !uuidOk {
+		return nil, fmt.Errorf("missing or invalid 'scrutiny_uuid' field in InfluxDB result")
+	}
+	smUUID, err := uuid.FromString(smUUIDString)
+	if err != nil {
+		return nil, fmt.Errorf("invalid 'scrutiny_uuid' field in InfluxDB result: %w", err)
 	}
 	smProtocol, protoOk := attrs["device_protocol"].(string)
 	if !protoOk {
@@ -69,7 +85,7 @@ func NewSmartFromInfluxDB(attrs map[string]interface{}) (*Smart, error) {
 	sm := Smart{
 		//required fields
 		Date:           smDate,
-		DeviceWWN:      smWWN,
+		ScrutinyUUID:   smUUID,
 		DeviceProtocol: smProtocol,
 
 		Attributes: map[string]SmartAttribute{},
@@ -99,6 +115,20 @@ func NewSmartFromInfluxDB(attrs map[string]interface{}) (*Smart, error) {
 			} else {
 				log.Printf("unable to parse power_cycle_count information: %v", val)
 			}
+		case "total_bytes_read":
+			totalRead, totalReadOk := val.(int64)
+			if totalReadOk {
+				sm.TotalBytesRead = &totalRead
+			} else {
+				log.Printf("unable to parse total_bytes_read information: %v", val)
+			}
+		case "total_bytes_written":
+			totalWritten, totalWrittenOk := val.(int64)
+			if totalWrittenOk {
+				sm.TotalBytesWritten = &totalWritten
+			} else {
+				log.Printf("unable to parse total_bytes_written information: %v", val)
+			}
 		default:
 			// this key is unknown.
 			if !strings.HasPrefix(key, "attr.") {
@@ -125,14 +155,14 @@ func NewSmartFromInfluxDB(attrs map[string]interface{}) (*Smart, error) {
 
 	}
 
-	log.Printf("Found Smart Device (%s) Attributes (%v)", sm.DeviceWWN, len(sm.Attributes))
+	log.Printf("Found Smart Device (%s) Attributes (%v)", sm.ScrutinyUUID, len(sm.Attributes))
 
 	return &sm, nil
 }
 
 // Parse Collector SMART data results and create Smart object (and associated SmartAtaAttribute entries)
-func (sm *Smart) FromCollectorSmartInfo(wwn string, info collector.SmartInfo) error {
-	sm.DeviceWWN = wwn
+func (sm *Smart) FromCollectorSmartInfo(scrutiny_uuid uuid.UUID, info collector.SmartInfo) error {
+	sm.ScrutinyUUID = scrutiny_uuid
 	sm.Date = time.Unix(info.LocalTime.TimeT, 0)
 
 	//smart metrics
@@ -146,15 +176,61 @@ func (sm *Smart) FromCollectorSmartInfo(wwn string, info collector.SmartInfo) er
 	sm.DeviceProtocol = info.Device.Protocol
 	// process ATA/NVME/SCSI protocol data
 	sm.Attributes = map[string]SmartAttribute{}
-	if sm.DeviceProtocol == pkg.DeviceProtocolAta {
+	switch sm.DeviceProtocol {
+	case pkg.DeviceProtocolAta:
 		sm.ProcessAtaSmartInfo(info.AtaSmartAttributes.Table)
-	} else if sm.DeviceProtocol == pkg.DeviceProtocolNvme {
+		sm.TotalBytesRead = ataDeviceStatisticBytes(info, ataStatLogicalSectorsRead)
+		sm.TotalBytesWritten = ataDeviceStatisticBytes(info, ataStatLogicalSectorsWritten)
+	case pkg.DeviceProtocolNvme:
 		sm.ProcessNvmeSmartInfo(info.NvmeSmartHealthInformationLog)
-	} else if sm.DeviceProtocol == pkg.DeviceProtocolScsi {
+		read := info.NvmeSmartHealthInformationLog.DataUnitsRead * nvmeDataUnitBytes
+		written := info.NvmeSmartHealthInformationLog.DataUnitsWritten * nvmeDataUnitBytes
+		sm.TotalBytesRead, sm.TotalBytesWritten = &read, &written
+	case pkg.DeviceProtocolScsi:
 		sm.ProcessScsiSmartInfo(info.ScsiGrownDefectList, info.ScsiErrorCounterLog)
+		sm.TotalBytesRead = scsiGigabytesToBytes(info.ScsiErrorCounterLog.Read.GigabytesProcessed)
+		sm.TotalBytesWritten = scsiGigabytesToBytes(info.ScsiErrorCounterLog.Write.GigabytesProcessed)
 	}
 
 	return nil
+}
+
+// Offsets into ATA Device Statistics (log 0x04) page 1, "General Statistics".
+// Unlike attributes 241/242, these are defined by ACS in logical sectors.
+const (
+	ataStatLogicalSectorsWritten = 0x18
+	ataStatLogicalSectorsRead    = 0x28
+)
+
+// NVMe data units are 1000 units of 512 bytes.
+const nvmeDataUnitBytes = 1000 * 512
+
+func ataDeviceStatisticBytes(info collector.SmartInfo, offset int) *int64 {
+	if info.LogicalBlockSize <= 0 {
+		return nil
+	}
+	for _, page := range info.AtaDeviceStatistics.Pages {
+		if page.Number != 1 {
+			continue
+		}
+		for _, stat := range page.Table {
+			if stat.Offset == offset && stat.Flags.Valid {
+				bytes := stat.Value * int64(info.LogicalBlockSize)
+				return &bytes
+			}
+		}
+	}
+	return nil
+}
+
+// smartctl reports SCSI gigabytes processed as a decimal string in units of 10^9 bytes.
+func scsiGigabytesToBytes(gigabytes string) *int64 {
+	gb, err := strconv.ParseFloat(gigabytes, 64)
+	if err != nil {
+		return nil
+	}
+	bytes := int64(math.Round(gb * 1e9))
+	return &bytes
 }
 
 // generate SmartAtaAttribute entries from Scrutiny Collector Smart data.

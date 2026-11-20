@@ -6,6 +6,7 @@ import type { DeviceModel } from '@/models/device-model';
 function createMockDevice(overrides: Partial<DeviceModel> = {}): DeviceModel {
   return {
     muted: false,
+    scrutiny_uuid: '00000000-0000-0000-0000-000000000001',
     wwn: 'wwn-test',
     manufacturer: 'Test Manufacturer',
     model_name: 'Test Model',

@@ -57,12 +57,13 @@ Once you've verified that `smartctl` correctly detects your drives, make sure sc
 > NOTE: make sure you specify all the devices you'd like scrutiny to process using `--device=` flags.
 
 ```bash
+# best practice: pin to a specific release instead of latest
 docker run -it --rm \
   -v /run/udev:/run/udev:ro \
   --cap-add SYS_RAWIO \
   --device=/dev/sda \
   --device=/dev/sdb \
-  ghcr.io/analogj/scrutiny:master-collector smartctl --scan
+  ghcr.io/analogj/scrutiny:latest-collector smartctl --scan
 ```
 
 If the output is the same, your devices will be processed by Scrutiny.
@@ -72,6 +73,16 @@ In some cases `--scan` does not correctly detect the device type, returning [inc
 Scrutiny will supports overriding the detected device type via the config file.
 
 [example.collector.yaml](https://github.com/AnalogJ/scrutiny/blob/master/example.collector.yaml)
+
+To restrict collection to only specific devices, set `allow_listed_devices` to
+the full device paths reported by `smartctl --scan`. If this setting is omitted
+or empty, Scrutiny collects every detected device.
+
+```yaml
+allow_listed_devices:
+  - /dev/sda
+  - /dev/sdb
+```
 
 ### RAID Controllers (Megaraid/3ware/HBA/Adaptec/HPE/etc)
 Smartctl has support for a large number of [RAID controllers](https://www.smartmontools.org/wiki/Supported_RAID-Controllers), however this 
@@ -195,6 +206,7 @@ If you have exhausted all other mechanisms to get your disks working with `smart
 With this workaround your `docker run` command would look similar to the following:
 
 ```bash
+# best practice: pin to a specific release instead of latest
 docker run -it --rm -p 8080:8080 -p 8086:8086 \
   -v `pwd`/scrutiny:/opt/scrutiny/config \
   -v `pwd`/influxdb2:/opt/scrutiny/influxdb \
@@ -202,7 +214,7 @@ docker run -it --rm -p 8080:8080 -p 8086:8086 \
   --privileged \
   -v /dev:/dev \
   --name scrutiny \
-  ghcr.io/analogj/scrutiny:master-omnibus
+  ghcr.io/analogj/scrutiny:latest-omnibus
 ```
 
 ## Scrutiny detects Failure but SMART Passed?

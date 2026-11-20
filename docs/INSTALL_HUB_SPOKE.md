@@ -49,19 +49,15 @@ contains the connection and notification details but I always find it easier to 
 docker-compose.
 
 ```yaml
-version: "3.4"
-
 networks:
   monitoring: # A common network for all monitoring services to communicate into
-    external: true
   notifications: # To Gotify or another Notification service
-    external: true
 
 services:
   influxdb:
     restart: unless-stopped
     container_name: influxdb
-    image: influxdb:2.1-alpine
+    image: influxdb:2.8
     ports:
       - 8086:8086
     volumes:
@@ -73,7 +69,8 @@ services:
       - DOCKER_INFLUXDB_INIT_PASSWORD=${PASSWORD}
       - DOCKER_INFLUXDB_INIT_ORG=homelab
       - DOCKER_INFLUXDB_INIT_BUCKET=scrutiny
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=your-very-secret-token
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=SUPER-SECRET-TOKEN
+      - TZ=Europe/Stockholm
     networks:
       - monitoring
 
@@ -85,17 +82,20 @@ services:
     ports:
       - 8080:8080
     volumes:
-      - ${DIR_CONFIG}/scrutiny/config:/opt/scrutiny/config
+      - ${DIR_CONFIG}/config:/opt/scrutiny/config
     environment:
       - SCRUTINY_WEB_INFLUXDB_HOST=influxdb
       - SCRUTINY_WEB_INFLUXDB_PORT=8086
-      - SCRUTINY_WEB_INFLUXDB_TOKEN=your-very-secret-token
+      - SCRUTINY_WEB_INFLUXDB_TOKEN=SUPER-SECRET-TOKEN
       - SCRUTINY_WEB_INFLUXDB_ORG=homelab
       - SCRUTINY_WEB_INFLUXDB_BUCKET=scrutiny
-      # Optional but highly recommended to notify you in case of a problem
-      - SCRUTINY_NOTIFY_URLS=["http://gotify:80/message?token=a-gotify-token"]
+      # Optional but highly recommended to notify you in case of a problem; space-separated list of shoutrrr uri's
+      # https://github.com/AnalogJ/scrutiny/blob/master/docs/TROUBLESHOOTING_NOTIFICATIONS.md
+      - SCRUTINY_NOTIFY_URLS=http://gotify:80/message?token=a-gotify-token ntfy://username:password@host:port/topic
+      - TZ=Europe/Stockholm
     depends_on:
-      - influxdb
+      influxdb:
+        condition: service_healthy
     networks:
       - notifications
       - monitoring
@@ -122,12 +122,12 @@ apt install smartmontools -y
 # 3. Make it exacutable
 # 4. List the contents of the library for confirmation
 mkdir -p /opt/scrutiny/bin && \
-curl -L https://github.com/AnalogJ/scrutiny/releases/download/v0.8.1/scrutiny-collector-metrics-linux-amd64 > /opt/scrutiny/bin/scrutiny-collector-metrics-linux-amd64 && \
+curl -L https://github.com/AnalogJ/scrutiny/releases/download/v0.9.3/scrutiny-collector-metrics-linux-amd64 > /opt/scrutiny/bin/scrutiny-collector-metrics-linux-amd64 && \
 chmod +x /opt/scrutiny/bin/scrutiny-collector-metrics-linux-amd64 && \
 ls -lha /opt/scrutiny/bin
 ```
 
-<p class="callout warning">When downloading Github Release Assests, make sure that you have the correct version. The provided example is with Release v0.5.0. [The release list can be found here.](https://github.com/analogj/scrutiny/releases) </p>
+<p class="callout warning">When downloading Github Release Assests, make sure that you have the correct version. The provided example is with Release v0.9.3. [The release list can be found here.](https://github.com/analogj/scrutiny/releases) </p>
 
 Once the Collector is installed, you can run it with the following command. Make sure to add the correct address and
 port of your Hub as `--api-endpoint`.
@@ -164,8 +164,6 @@ Also all drives that you wish to monitor need to be presented to the container u
 The image handles the periodic scanning of the drives.
 
 ```yaml
-version: "3.4"
-
 services:
 
   collector:

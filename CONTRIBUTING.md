@@ -147,6 +147,11 @@ The Scrutiny repository is a [monorepo](https://en.wikipedia.org/wiki/Monorepo) 
 
 Depending on the functionality you are adding, you may need to setup a development environment for 1 or more projects.
 
+# Devcontainer
+Devcontainer configurations are available to build and run Scrutiny (WebUI and Collector) in a fully isolated environment.
+When opening the project with vscode, choose "Reopen in Container". Three configurations are available depending on your 
+container runtime and setup: docker, docker-rootless, and podman. 
+
 # Modifying the Scrutiny Backend Server (API)
 
 1. install the [Go runtime](https://go.dev/doc/install) (v1.25)
@@ -177,7 +182,7 @@ Depending on the functionality you are adding, you may need to setup a developme
     ```
 4. start a InfluxDB docker container.
     ```bash
-    docker run -p 8086:8086 --rm influxdb:2.2
+    docker run -p 8086:8086 --rm influxdb:2.8
     ```
 5. start the scrutiny web server
     ```bash
@@ -230,7 +235,7 @@ you'll need to follow the steps below:
     ```
 4. start a InfluxDB docker container.
     ```bash
-    docker run -p 8086:8086 --rm influxdb:2.2
+    docker run -p 8086:8086 --rm influxdb:2.8
     ```
 5. build the Angular Frontend Application
     ```bash
@@ -254,7 +259,7 @@ If you'd like to populate the database with some test data,  you can run the fol
 > This is done automatically by the `webapp/backend/pkg/models/testdata/helper.go` script
 
 ```
-docker run -p 8086:8086 --rm influxdb:2.2
+docker run -p 8086:8086 --rm influxdb:2.8
 
 
 # curl -X POST -H "Content-Type: application/json" -d @webapp/backend/pkg/web/testdata/register-devices-req.json localhost:8080/api/devices/register
@@ -301,13 +306,13 @@ docker cp scrutiny:/tmp/web.log web.log
 # Docker Development
 
 ```
-docker build -f docker/Dockerfile . -t ghcr.io/analogj/scrutiny:master-omnibus
+docker build -f docker/Dockerfile . -t ghcr.io/analogj/scrutiny:dev-omnibus
 docker run -it --rm -p 8080:8080 \
 -v /run/udev:/run/udev:ro \
 --cap-add SYS_RAWIO \
 --device=/dev/sda \
 --device=/dev/sdb \
-ghcr.io/analogj/scrutiny:master-omnibus
+ghcr.io/analogj/scrutiny:dev-omnibus
 /opt/scrutiny/bin/scrutiny-collector-metrics run
 ```
 
@@ -322,7 +327,7 @@ docker run -p 8086:8086 -d --rm \
 -e DOCKER_INFLUXDB_INIT_ORG=scrutiny \
 -e DOCKER_INFLUXDB_INIT_BUCKET=metrics \
 -e DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token \
-influxdb:2.2
+influxdb:2.8
 go test ./...
 
 ```

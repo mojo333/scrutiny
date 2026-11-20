@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/notify"
 	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,17 +21,19 @@ func UploadDeviceMetrics(c *gin.Context) {
 	appConfig := c.MustGet("CONFIG").(config.Interface)
 	//influxWriteDb := c.MustGet("INFLUXDB_WRITE").(*api.WriteAPIBlocking)
 	deviceRepo := c.MustGet("DEVICE_REPOSITORY").(database.DeviceRepo)
+	missedUploadTracker := c.MustGet("MISSED_UPLOAD_TRACKER").(*notify.MissedUploadTracker)
 
 	//appConfig := c.MustGet("CONFIG").(config.Interface)
 
-	if err := ValidateWWN(c.Param("wwn")); err != nil {
-		logger.Errorln("Invalid WWN format", err)
+	scrutiny_uuid, err := uuid.FromString(c.Param("scrutiny_uuid"))
+	if err != nil {
+		logger.Errorln("Invalid scrutiny uuid", err)
 		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
 
 	var collectorSmartData collector.SmartInfo
-	err := c.BindJSON(&collectorSmartData)
+	err = c.BindJSON(&collectorSmartData)
 	if err != nil {
 		logger.Errorln("Cannot parse SMART data", err)
 		c.JSON(http.StatusBadRequest, gin.H{"success": false})
@@ -37,7 +41,7 @@ func UploadDeviceMetrics(c *gin.Context) {
 	}
 
 	//update the device information if necessary
-	updatedDevice, err := deviceRepo.UpdateDevice(c, c.Param("wwn"), collectorSmartData)
+	updatedDevice, err := deviceRepo.UpdateDevice(c, scrutiny_uuid, collectorSmartData)
 	if err != nil {
 		logger.Errorln("An error occurred while updating device data from smartctl metrics:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
@@ -45,30 +49,32 @@ func UploadDeviceMetrics(c *gin.Context) {
 	}
 
 	// insert smart info
-	smartData, err := deviceRepo.SaveSmartAttributes(c, c.Param("wwn"), collectorSmartData)
+	smartData, err := deviceRepo.SaveSmartAttributes(c, scrutiny_uuid, collectorSmartData)
 	if err != nil {
 		logger.Errorln("An error occurred while saving smartctl metrics", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
 		return
 	}
 
-	if smartData.Status != pkg.DeviceStatusPassed {
-		//there is a failure detected by Scrutiny, update the device status on the homepage.
-		updatedDevice, err = deviceRepo.UpdateDeviceStatus(c, c.Param("wwn"), smartData.Status)
-		if err != nil {
-			logger.Errorln("An error occurred while updating device status", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false})
-			return
-		}
+	//update the device status on the homepage to match the latest SMART analysis. This is done
+	//unconditionally so that a device which previously failed but now reports clean SMART data is
+	//reset from a failed status back to passing.
+	updatedDevice, err = deviceRepo.UpdateDeviceStatus(c, scrutiny_uuid, smartData.Status)
+	if err != nil {
+		logger.Errorln("An error occurred while updating device status", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+		return
 	}
 
 	// save smart temperature data (ignore failures)
-	err = deviceRepo.SaveSmartTemperature(c, c.Param("wwn"), updatedDevice.DeviceProtocol, collectorSmartData, appConfig.GetBool(fmt.Sprintf("%s.collector.discard_sct_temp_history", config.DB_USER_SETTINGS_SUBKEY)))
+	err = deviceRepo.SaveSmartTemperature(c, scrutiny_uuid, updatedDevice.DeviceProtocol, collectorSmartData, appConfig.GetBool(fmt.Sprintf("%s.collector.discard_sct_temp_history", config.DB_USER_SETTINGS_SUBKEY)))
 	if err != nil {
 		logger.Errorln("An error occurred while saving smartctl temp data", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
 		return
 	}
+
+	missedUploadTracker.RecordUpload(updatedDevice, time.Now())
 
 	//check for error
 	if notify.ShouldNotify(
@@ -80,7 +86,7 @@ func UploadDeviceMetrics(c *gin.Context) {
 		pkg.MetricsNotifyLevel(appConfig.GetInt(fmt.Sprintf("%s.metrics.notify_level", config.DB_USER_SETTINGS_SUBKEY))),
 		appConfig.GetBool(fmt.Sprintf("%s.metrics.repeat_notifications", config.DB_USER_SETTINGS_SUBKEY)),
 		c,
-		c.Param("wwn"),
+		scrutiny_uuid,
 		deviceRepo,
 	) {
 		//send notifications

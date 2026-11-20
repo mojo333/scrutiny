@@ -2,24 +2,25 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/thresholds"
 	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 )
 
 func GetDeviceDetails(c *gin.Context) {
 	logger := c.MustGet("LOGGER").(*logrus.Entry)
 	deviceRepo := c.MustGet("DEVICE_REPOSITORY").(database.DeviceRepo)
-
-	if err := ValidateWWN(c.Param("wwn")); err != nil {
-		logger.Errorln("Invalid WWN format", err)
+	scrutiny_uuid, err := uuid.FromString(c.Param("scrutiny_uuid"))
+	if err != nil {
+		logger.Errorln("Invalid scrutiny uuid", err)
 		c.JSON(http.StatusBadRequest, gin.H{"success": false})
 		return
 	}
-
-	device, err := deviceRepo.GetDeviceDetails(c, c.Param("wwn"))
+	device, err := deviceRepo.GetDeviceDetails(c, scrutiny_uuid)
 	if err != nil {
 		logger.Errorln("An error occurred while retrieving device details", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
@@ -31,7 +32,8 @@ func GetDeviceDetails(c *gin.Context) {
 		durationKey = "forever"
 	}
 
-	smartResults, err := deviceRepo.GetSmartAttributeHistory(c, c.Param("wwn"), durationKey, 0, 0, nil)
+	// aggregate to one point per day to speed up the drive details page
+	smartResults, err := deviceRepo.GetSmartAttributeHistory(c, scrutiny_uuid, durationKey, 24*time.Hour, 0, 0, nil)
 	if err != nil {
 		logger.Errorln("An error occurred while retrieving device smart results", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false})

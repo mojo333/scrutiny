@@ -26,11 +26,11 @@ import {
 
 export function DeviceDetail() {
   const params = useParams({ strict: false });
-  const wwn = (params as { wwn: string }).wwn;
+  const scrutinyUuid = (params as { scrutinyUuid: string }).scrutinyUuid;
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useDeviceDetail(wwn);
+  const { data, isLoading, error } = useDeviceDetail(scrutinyUuid);
   const { data: config } = useAppConfig();
 
   if (isLoading) {
@@ -67,19 +67,19 @@ export function DeviceDetail() {
 
     // Update muted status if changed
     if (muted !== device.muted) {
-      promises.push(muted ? muteDevice(wwn) : unmuteDevice(wwn));
+      promises.push(muted ? muteDevice(scrutinyUuid) : unmuteDevice(scrutinyUuid));
     }
 
     // Update label if changed
     if (label !== device.label) {
-      promises.push(setDeviceLabel(wwn, label));
+      promises.push(setDeviceLabel(scrutinyUuid, label));
     }
 
     if (promises.length > 0) {
       try {
         await Promise.all(promises);
         // Refetch device details to get updated data
-        queryClient.invalidateQueries({ queryKey: ['device-detail', wwn] });
+        queryClient.invalidateQueries({ queryKey: ['device-detail', scrutinyUuid] });
         toast.success('Device settings updated');
       } catch (error) {
         console.error('Error saving device settings:', error);

@@ -10,15 +10,17 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/measurements"
+	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSmart_Flatten(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	smart := measurements.Smart{
 		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
+		ScrutinyUUID:    smartUUID,
 		DeviceProtocol:  pkg.DeviceProtocolAta,
 		Temp:            50,
 		PowerOnHours:    10,
@@ -31,16 +33,35 @@ func TestSmart_Flatten(t *testing.T) {
 	tags, fields := smart.Flatten()
 
 	//assert
-	require.Equal(t, map[string]string{"device_protocol": "ATA", "device_wwn": "test-wwn"}, tags)
+	require.Equal(t, map[string]string{"device_protocol": "ATA", "scrutiny_uuid": smartUUID.String()}, tags)
 	require.Equal(t, map[string]interface{}{"power_cycle_count": int64(10), "power_on_hours": int64(10), "temp": int64(50)}, fields)
+}
+
+func TestSmart_Flatten_TotalBytes(t *testing.T) {
+	//setup
+	read, written := int64(1000), int64(2000)
+	smart := measurements.Smart{
+		ScrutinyUUID:      uuid.Must(uuid.NewV4()),
+		DeviceProtocol:    pkg.DeviceProtocolAta,
+		TotalBytesRead:    &read,
+		TotalBytesWritten: &written,
+	}
+
+	//test
+	_, fields := smart.Flatten()
+
+	//assert
+	require.Equal(t, int64(1000), fields["total_bytes_read"])
+	require.Equal(t, int64(2000), fields["total_bytes_written"])
 }
 
 func TestSmart_Flatten_ATA(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	smart := measurements.Smart{
 		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
+		ScrutinyUUID:    smartUUID,
 		DeviceProtocol:  pkg.DeviceProtocolAta,
 		Temp:            50,
 		PowerOnHours:    10,
@@ -72,7 +93,7 @@ func TestSmart_Flatten_ATA(t *testing.T) {
 	tags, fields := smart.Flatten()
 
 	//assert
-	require.Equal(t, map[string]string{"device_protocol": "ATA", "device_wwn": "test-wwn"}, tags)
+	require.Equal(t, map[string]string{"device_protocol": "ATA", "scrutiny_uuid": smartUUID.String()}, tags)
 	require.Equal(t, map[string]interface{}{
 		"attr.1.attribute_id":      "1",
 		"attr.1.failure_rate":      float64(0),
@@ -107,9 +128,10 @@ func TestSmart_Flatten_ATA(t *testing.T) {
 func TestSmart_Flatten_SCSI(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	smart := measurements.Smart{
 		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
+		ScrutinyUUID:    smartUUID,
 		DeviceProtocol:  pkg.DeviceProtocolScsi,
 		Temp:            50,
 		PowerOnHours:    10,
@@ -127,7 +149,7 @@ func TestSmart_Flatten_SCSI(t *testing.T) {
 	tags, fields := smart.Flatten()
 
 	//assert
-	require.Equal(t, map[string]string{"device_protocol": "SCSI", "device_wwn": "test-wwn"}, tags)
+	require.Equal(t, map[string]string{"device_protocol": "SCSI", "scrutiny_uuid": smartUUID.String()}, tags)
 	require.Equal(t, map[string]interface{}{
 		"attr.read_errors_corrected_by_eccfast.attribute_id":      "read_errors_corrected_by_eccfast",
 		"attr.read_errors_corrected_by_eccfast.failure_rate":      float64(0),
@@ -145,9 +167,10 @@ func TestSmart_Flatten_SCSI(t *testing.T) {
 func TestSmart_Flatten_NVMe(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	smart := measurements.Smart{
 		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
+		ScrutinyUUID:    smartUUID,
 		DeviceProtocol:  pkg.DeviceProtocolNvme,
 		Temp:            50,
 		PowerOnHours:    10,
@@ -165,7 +188,7 @@ func TestSmart_Flatten_NVMe(t *testing.T) {
 	tags, fields := smart.Flatten()
 
 	//assert
-	require.Equal(t, map[string]string{"device_protocol": "NVMe", "device_wwn": "test-wwn"}, tags)
+	require.Equal(t, map[string]string{"device_protocol": "NVMe", "scrutiny_uuid": smartUUID.String()}, tags)
 	require.Equal(t, map[string]interface{}{
 		"attr.available_spare.attribute_id":      "available_spare",
 		"attr.available_spare.failure_rate":      float64(0),
@@ -182,9 +205,10 @@ func TestSmart_Flatten_NVMe(t *testing.T) {
 func TestNewSmartFromInfluxDB_ATA(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	attrs := map[string]interface{}{
 		"_time":                    timeNow,
-		"device_wwn":               "test-wwn",
+		"scrutiny_uuid":            smartUUID.String(),
 		"device_protocol":          pkg.DeviceProtocolAta,
 		"attr.1.attribute_id":      "1",
 		"attr.1.failure_rate":      float64(0),
@@ -200,6 +224,8 @@ func TestNewSmartFromInfluxDB_ATA(t *testing.T) {
 		"power_cycle_count":        int64(10),
 		"power_on_hours":           int64(10),
 		"temp":                     int64(50),
+		"total_bytes_read":         int64(1000),
+		"total_bytes_written":      int64(2000),
 	}
 
 	//test
@@ -207,13 +233,16 @@ func TestNewSmartFromInfluxDB_ATA(t *testing.T) {
 
 	//assert
 	require.NoError(t, err)
+	read, written := int64(1000), int64(2000)
 	require.Equal(t, &measurements.Smart{
-		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
-		DeviceProtocol:  "ATA",
-		Temp:            50,
-		PowerOnHours:    10,
-		PowerCycleCount: 10,
+		Date:              timeNow,
+		ScrutinyUUID:      smartUUID,
+		DeviceProtocol:    "ATA",
+		Temp:              50,
+		PowerOnHours:      10,
+		PowerCycleCount:   10,
+		TotalBytesRead:    &read,
+		TotalBytesWritten: &written,
 		Attributes: map[string]measurements.SmartAttribute{
 			"1": &measurements.SmartAtaAttribute{
 				AttributeId: 1,
@@ -230,9 +259,10 @@ func TestNewSmartFromInfluxDB_ATA(t *testing.T) {
 func TestNewSmartFromInfluxDB_NVMe(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	attrs := map[string]interface{}{
 		"_time":                                  timeNow,
-		"device_wwn":                             "test-wwn",
+		"scrutiny_uuid":                          smartUUID.String(),
 		"device_protocol":                        pkg.DeviceProtocolNvme,
 		"attr.available_spare.attribute_id":      "available_spare",
 		"attr.available_spare.failure_rate":      float64(0),
@@ -253,7 +283,7 @@ func TestNewSmartFromInfluxDB_NVMe(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &measurements.Smart{
 		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
+		ScrutinyUUID:    smartUUID,
 		DeviceProtocol:  "NVMe",
 		Temp:            50,
 		PowerOnHours:    10,
@@ -269,9 +299,10 @@ func TestNewSmartFromInfluxDB_NVMe(t *testing.T) {
 func TestNewSmartFromInfluxDB_SCSI(t *testing.T) {
 	//setup
 	timeNow := time.Now()
+	smartUUID := uuid.Must(uuid.NewV4())
 	attrs := map[string]interface{}{
 		"_time":           timeNow,
-		"device_wwn":      "test-wwn",
+		"scrutiny_uuid":   smartUUID.String(),
 		"device_protocol": pkg.DeviceProtocolScsi,
 		"attr.read_errors_corrected_by_eccfast.attribute_id":      "read_errors_corrected_by_eccfast",
 		"attr.read_errors_corrected_by_eccfast.failure_rate":      float64(0),
@@ -292,7 +323,7 @@ func TestNewSmartFromInfluxDB_SCSI(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &measurements.Smart{
 		Date:            timeNow,
-		DeviceWWN:       "test-wwn",
+		ScrutinyUUID:    smartUUID,
 		DeviceProtocol:  "SCSI",
 		Temp:            50,
 		PowerOnHours:    10,
@@ -320,11 +351,12 @@ func TestFromCollectorSmartInfo(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusPassed, smartMdl.Status)
 	require.Equal(t, 18, len(smartMdl.Attributes))
 	require.Equal(t, int64(32), smartMdl.Temp)
@@ -336,6 +368,39 @@ func TestFromCollectorSmartInfo(t *testing.T) {
 	//ensure that Scrutiny warning for a non critical attribute does not set device status to failed.
 	require.Equal(t, pkg.AttributeStatusWarningScrutiny, smartMdl.Attributes["3"].GetStatus())
 
+	//no device statistics log, so totals are unknown
+	require.Nil(t, smartMdl.TotalBytesRead)
+	require.Nil(t, smartMdl.TotalBytesWritten)
+}
+
+func TestFromCollectorSmartInfo_AtaDeviceStatistics(t *testing.T) {
+	//setup
+	smartDataFile, err := os.Open("../testdata/smart-ata-full.json")
+	require.NoError(t, err)
+	defer smartDataFile.Close()
+
+	var smartJson collector.SmartInfo
+
+	smartDataBytes, err := io.ReadAll(smartDataFile)
+	require.NoError(t, err)
+	err = json.Unmarshal(smartDataBytes, &smartJson)
+	require.NoError(t, err)
+
+	//test
+	smartMdl := measurements.Smart{}
+	err = smartMdl.FromCollectorSmartInfo(uuid.Must(uuid.NewV4()), smartJson)
+
+	//assert
+	require.NoError(t, err)
+	require.Equal(t, int64(34909544344*512), *smartMdl.TotalBytesRead)
+	require.Equal(t, int64(64777770148*512), *smartMdl.TotalBytesWritten)
+
+	//an unknown logical block size makes the totals unknown
+	smartJson.LogicalBlockSize = 0
+	err = smartMdl.FromCollectorSmartInfo(uuid.Must(uuid.NewV4()), smartJson)
+	require.NoError(t, err)
+	require.Nil(t, smartMdl.TotalBytesRead)
+	require.Nil(t, smartMdl.TotalBytesWritten)
 }
 
 func TestFromCollectorSmartInfo_Fail_Smart(t *testing.T) {
@@ -353,11 +418,12 @@ func TestFromCollectorSmartInfo_Fail_Smart(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusFailedSmart, smartMdl.Status)
 	require.Equal(t, 0, len(smartMdl.Attributes))
 }
@@ -377,11 +443,12 @@ func TestFromCollectorSmartInfo_Fail_ScrutinySmart(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusFailedScrutiny|pkg.DeviceStatusFailedSmart, smartMdl.Status)
 	require.Equal(t, 17, len(smartMdl.Attributes))
 	require.True(t, pkg.AttributeStatusHas(smartMdl.Attributes["5"].GetStatus(), pkg.AttributeStatusFailedSmart))
@@ -403,11 +470,12 @@ func TestFromCollectorSmartInfo_Fail_ScrutinyNonCriticalFailed(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusFailedScrutiny, smartMdl.Status)
 	require.Equal(t, pkg.AttributeStatusFailedScrutiny, smartMdl.Attributes["199"].GetStatus(),
 		"scrutiny should detect that %d failed (status: %d, %s)",
@@ -436,11 +504,12 @@ func TestFromCollectorSmartInfo_NVMe_Fail_Scrutiny(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusFailedScrutiny, smartMdl.Status)
 	require.Equal(t, pkg.AttributeStatusFailedScrutiny, smartMdl.Attributes["media_errors"].GetStatus(),
 		"scrutiny should detect that %s failed (status: %d, %s)",
@@ -467,17 +536,21 @@ func TestFromCollectorSmartInfo_Nvme(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusPassed, smartMdl.Status)
 	require.Equal(t, 16, len(smartMdl.Attributes))
 	require.Equal(t, int64(36), smartMdl.Temp)
 
 	require.Equal(t, int64(111303174), smartMdl.Attributes["host_reads"].(*measurements.SmartNvmeAttribute).Value)
 	require.Equal(t, int64(83170961), smartMdl.Attributes["host_writes"].(*measurements.SmartNvmeAttribute).Value)
+
+	require.Equal(t, int64(9511859*1000*512), *smartMdl.TotalBytesRead)
+	require.Equal(t, int64(7773431*1000*512), *smartMdl.TotalBytesWritten)
 }
 
 func TestFromCollectorSmartInfo_Scsi(t *testing.T) {
@@ -495,11 +568,12 @@ func TestFromCollectorSmartInfo_Scsi(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
-	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
+	require.Equal(t, smartUUID, smartMdl.ScrutinyUUID)
 	require.Equal(t, pkg.DeviceStatusFailedScrutiny, smartMdl.Status)
 	require.Equal(t, 13, len(smartMdl.Attributes))
 	require.Equal(t, int64(34), smartMdl.Temp)
@@ -507,6 +581,10 @@ func TestFromCollectorSmartInfo_Scsi(t *testing.T) {
 	require.Equal(t, int64(56), smartMdl.Attributes["scsi_grown_defect_list"].(*measurements.SmartScsiAttribute).Value)
 	require.Equal(t, pkg.AttributeStatusFailedScrutiny, smartMdl.Attributes["scsi_grown_defect_list"].GetStatus())
 	require.Equal(t, int64(300357663), smartMdl.Attributes["read_errors_corrected_by_eccfast"].(*measurements.SmartScsiAttribute).Value) //total_errors_corrected
+
+	//gigabytes_processed "176987.332" and "86472.611"
+	require.Equal(t, int64(176987332000000), *smartMdl.TotalBytesRead)
+	require.Equal(t, int64(86472611000000), *smartMdl.TotalBytesWritten)
 }
 
 // Some SAS drives (e.g. SPC-5) only report temperature via the Environmental
@@ -526,7 +604,8 @@ func TestFromCollectorSmartInfo_Scsi_EnvironmentalTemperature(t *testing.T) {
 
 	//test
 	smartMdl := measurements.Smart{}
-	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+	smartUUID := uuid.Must(uuid.NewV4())
+	err = smartMdl.FromCollectorSmartInfo(smartUUID, smartJson)
 
 	//assert
 	require.NoError(t, err)
@@ -575,3 +654,6 @@ func TestSmartAtaAttribute_ValidateThreshold_BucketBoundaries(t *testing.T) {
 		})
 	}
 }
+
+// Some SAS drives (e.g. SPC-5) only report temperature via the Environmental
+// Reporting log page, so smartctl omits the top-level temperature object.
