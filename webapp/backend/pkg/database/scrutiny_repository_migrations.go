@@ -15,6 +15,7 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20220509170100"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20220716214900"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20250221084400"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20260108000000"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20260216155600"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20261021120000"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/database/migrations/m20261021150000"
@@ -513,6 +514,17 @@ func (sr *scrutinyRepository) Migrate(ctx context.Context) error {
 					},
 				}
 				return tx.Create(&defaultSettings).Error
+			},
+		},
+		{
+			// ID matches the scrutiny fork this feature comes from, so databases already
+			// migrated there are not migrated twice
+			ID: "m20260108000000", // add ZFS pool and vdev tables
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(
+					&m20260108000000.ZFSPool{},
+					&m20260108000000.ZFSVdev{},
+				)
 			},
 		},
 	})
