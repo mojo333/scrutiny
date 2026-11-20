@@ -19,8 +19,12 @@ type SmartNvmeAttribute struct {
 	FailureRate      float64             `json:"failure_rate,omitempty"`
 }
 
-func (sa *SmartNvmeAttribute) GetTransformedValue() int64 {
-	return sa.TransformedValue
+// currently all attributes use Value, but just in case...
+func (sa *SmartNvmeAttribute) GetComparableValue() int64 {
+	if thresholds.NmveMetadata[sa.AttributeId].DisplayTransformed {
+		return sa.TransformedValue
+	}
+	return sa.Value
 }
 
 func (sa *SmartNvmeAttribute) GetStatus() pkg.AttributeStatus {
@@ -89,12 +93,16 @@ func (sa *SmartNvmeAttribute) PopulateAttributeStatus() *SmartNvmeAttribute {
 	if sa.Threshold != -1 {
 		if smartMetadata, ok := thresholds.NmveMetadata[sa.AttributeId]; ok {
 			//check what the ideal is. Ideal tells us if we our recorded value needs to be above, or below the threshold
-			if (smartMetadata.Ideal == "low" && sa.Value > sa.Threshold) ||
-				(smartMetadata.Ideal == "high" && sa.Value < sa.Threshold) {
+			value := sa.GetComparableValue()
+			if (smartMetadata.Ideal == "low" && value > sa.Threshold) ||
+				(smartMetadata.Ideal == "high" && value < sa.Threshold) {
 				sa.Status = pkg.AttributeStatusSet(sa.Status, pkg.AttributeStatusFailedScrutiny)
 				sa.StatusReason += "Attribute is failing recommended SMART threshold"
 			}
 		}
+	}
+	if sa.AttributeId == "critical_warning" && sa.Value != 0 {
+		sa.Status = pkg.AttributeStatusSet(sa.Status, pkg.AttributeStatusFailedSmart)
 	}
 	//TODO: eventually figure out the critical_warning bits and determine correct error messages here.
 

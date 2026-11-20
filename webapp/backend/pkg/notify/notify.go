@@ -134,7 +134,7 @@ func ShouldNotify(logger logrus.FieldLogger, device models.Device, smartAttrs me
 			if !lastOk || !currOk || lastAttr == nil || currAttr == nil {
 				return true
 			}
-			if lastAttr.GetTransformedValue() != currAttr.GetTransformedValue() {
+			if lastAttr.GetComparableValue() != currAttr.GetComparableValue() {
 				return true
 			}
 		}

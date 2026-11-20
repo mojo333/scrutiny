@@ -327,6 +327,7 @@ func TestFromCollectorSmartInfo(t *testing.T) {
 	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
 	require.Equal(t, pkg.DeviceStatusPassed, smartMdl.Status)
 	require.Equal(t, 18, len(smartMdl.Attributes))
+	require.Equal(t, int64(32), smartMdl.Temp)
 
 	//check that temperature was correctly parsed
 	require.Equal(t, int64(163210330144), smartMdl.Attributes["194"].(*measurements.SmartAtaAttribute).RawValue)
@@ -383,6 +384,8 @@ func TestFromCollectorSmartInfo_Fail_ScrutinySmart(t *testing.T) {
 	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
 	require.Equal(t, pkg.DeviceStatusFailedScrutiny|pkg.DeviceStatusFailedSmart, smartMdl.Status)
 	require.Equal(t, 17, len(smartMdl.Attributes))
+	require.True(t, pkg.AttributeStatusHas(smartMdl.Attributes["5"].GetStatus(), pkg.AttributeStatusFailedSmart))
+	require.Equal(t, int64(1), smartMdl.Attributes["5"].GetComparableValue())
 }
 
 func TestFromCollectorSmartInfo_Fail_ScrutinyNonCriticalFailed(t *testing.T) {
@@ -471,6 +474,7 @@ func TestFromCollectorSmartInfo_Nvme(t *testing.T) {
 	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
 	require.Equal(t, pkg.DeviceStatusPassed, smartMdl.Status)
 	require.Equal(t, 16, len(smartMdl.Attributes))
+	require.Equal(t, int64(36), smartMdl.Temp)
 
 	require.Equal(t, int64(111303174), smartMdl.Attributes["host_reads"].(*measurements.SmartNvmeAttribute).Value)
 	require.Equal(t, int64(83170961), smartMdl.Attributes["host_writes"].(*measurements.SmartNvmeAttribute).Value)
@@ -498,7 +502,76 @@ func TestFromCollectorSmartInfo_Scsi(t *testing.T) {
 	require.Equal(t, "WWN-test", smartMdl.DeviceWWN)
 	require.Equal(t, pkg.DeviceStatusFailedScrutiny, smartMdl.Status)
 	require.Equal(t, 13, len(smartMdl.Attributes))
+	require.Equal(t, int64(34), smartMdl.Temp)
 
 	require.Equal(t, int64(56), smartMdl.Attributes["scsi_grown_defect_list"].(*measurements.SmartScsiAttribute).Value)
+	require.Equal(t, pkg.AttributeStatusFailedScrutiny, smartMdl.Attributes["scsi_grown_defect_list"].GetStatus())
 	require.Equal(t, int64(300357663), smartMdl.Attributes["read_errors_corrected_by_eccfast"].(*measurements.SmartScsiAttribute).Value) //total_errors_corrected
+}
+
+// Some SAS drives (e.g. SPC-5) only report temperature via the Environmental
+// Reporting log page, so smartctl omits the top-level temperature object.
+func TestFromCollectorSmartInfo_Scsi_EnvironmentalTemperature(t *testing.T) {
+	//setup
+	smartDataFile, err := os.Open("../testdata/smart-scsi-environmental-temp.json")
+	require.NoError(t, err)
+	defer smartDataFile.Close()
+
+	var smartJson collector.SmartInfo
+
+	smartDataBytes, err := io.ReadAll(smartDataFile)
+	require.NoError(t, err)
+	err = json.Unmarshal(smartDataBytes, &smartJson)
+	require.NoError(t, err)
+
+	//test
+	smartMdl := measurements.Smart{}
+	err = smartMdl.FromCollectorSmartInfo("WWN-test", smartJson)
+
+	//assert
+	require.NoError(t, err)
+	require.Equal(t, pkg.DeviceProtocolScsi, smartMdl.DeviceProtocol)
+	require.Equal(t, int64(25), smartMdl.Temp)
+	require.Equal(t, int64(43549), smartMdl.PowerOnHours)
+	require.Equal(t, 13, len(smartMdl.Attributes))
+}
+
+func TestSmartAtaAttribute_ValidateThreshold_BucketBoundaries(t *testing.T) {
+	//setup
+	testCases := []struct {
+		name             string
+		attributeId      int
+		value            int64
+		transformedValue int64
+		rawValue         int64
+		expectedStatus   pkg.AttributeStatus
+		expectedRate     float64
+	}{
+		//https://github.com/AnalogJ/scrutiny/issues/1072 - transformed value 0 falls in the [0, 100] bucket
+		{"attr 188 transformed value 0", 188, 100, 0, 0, pkg.AttributeStatusPassed, 0.024893587674442153},
+		{"attr 188 transformed value 100", 188, 100, 100, 0, pkg.AttributeStatusPassed, 0.024893587674442153},
+		{"attr 188 transformed value 101", 188, 100, 101, 0, pkg.AttributeStatusFailedScrutiny, 0.10044174089362015},
+		//raw value 1 falls in the [1, 4] bucket rather than between buckets
+		{"attr 5 raw value 0", 5, 100, 0, 0, pkg.AttributeStatusPassed, 0.025169175350572493},
+		{"attr 5 raw value 1", 5, 100, 0, 1, pkg.AttributeStatusPassed, 0.027432608477803388},
+		{"attr 5 raw value 5", 5, 100, 0, 5, pkg.AttributeStatusPassed, 0.07501976284584981},
+		{"attr 5 raw value 17", 5, 100, 0, 17, pkg.AttributeStatusFailedScrutiny, 0.23589260654405794},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			//test
+			attribute := measurements.SmartAtaAttribute{
+				AttributeId:      testCase.attributeId,
+				Value:            testCase.value,
+				RawValue:         testCase.rawValue,
+				TransformedValue: testCase.transformedValue,
+			}
+			attribute.ValidateThreshold()
+
+			//assert
+			require.Equal(t, testCase.expectedStatus, attribute.Status)
+			require.Equal(t, testCase.expectedRate, attribute.FailureRate)
+		})
+	}
 }

@@ -1,14 +1,16 @@
 package collector
 
+import "encoding/json"
+
 type SmartInfo struct {
 	JSONFormatVersion []int `json:"json_format_version"`
 	Smartctl          struct {
-		Version      []int    `json:"version"`
-		SvnRevision  string   `json:"svn_revision"`
-		PlatformInfo string   `json:"platform_info"`
-		BuildInfo    string   `json:"build_info"`
-		Argv         []string `json:"argv"`
-		ExitStatus   int      `json:"exit_status"`
+		Version      []int              `json:"version"`
+		SvnRevision  string             `json:"svn_revision"`
+		PlatformInfo string             `json:"platform_info"`
+		BuildInfo    string             `json:"build_info"`
+		Argv         []string           `json:"argv"`
+		ExitStatus   SmartctlExitStatus `json:"exit_status"`
 		Messages     []struct {
 			String   string `json:"string"`
 			Severity string `json:"severity"`
@@ -67,12 +69,15 @@ type SmartInfo struct {
 	SmartStatus struct {
 		Passed bool `json:"passed"`
 	} `json:"smart_status"`
+	SmartSupport SmartSupport `json:"smart_support"`
 
 	PowerOnTime struct {
 		Hours int64 `json:"hours"`
 	} `json:"power_on_time"`
 	PowerCycleCount int64 `json:"power_cycle_count"`
-	Temperature     struct {
+	// Pointer so that a null or missing temperature object can be told apart
+	// from a reported value of 0.
+	Temperature *struct {
 		Current int64 `json:"current"`
 	} `json:"temperature"`
 
@@ -235,6 +240,47 @@ type SmartInfo struct {
 	ScsiVersion         string              `json:"scsi_version"`
 	ScsiGrownDefectList int64               `json:"scsi_grown_defect_list"`
 	ScsiErrorCounterLog ScsiErrorCounterLog `json:"scsi_error_counter_log"`
+	// Keyed by smartctl as "temperature_1", "temperature_2", ...
+	ScsiEnvironmentalReports map[string]ScsiEnvironmentalReport `json:"scsi_environmental_reports"`
+}
+
+// ScsiEnvironmentalReport is an entry from the SCSI Environmental Reporting log page.
+// Current is a pointer so that a missing value can be told apart from 0.
+type ScsiEnvironmentalReport struct {
+	ParameterCode int    `json:"parameter_code"`
+	Current       *int64 `json:"current"`
+}
+
+type SmartSupport struct {
+	Available bool `json:"available"`
+	Enabled   bool `json:"enabled"`
+}
+
+func (s *SmartSupport) UnmarshalJSON(data []byte) error {
+	// smartctl changed smart_support from a legacy boolean to an object with
+	// separate available/enabled fields. Accept both shapes so collectors keep
+	// reporting support correctly across smartctl versions.
+	var supported bool
+	if err := json.Unmarshal(data, &supported); err == nil {
+		s.Available = supported
+		s.Enabled = supported
+		return nil
+	}
+
+	var support struct {
+		Available bool `json:"available"`
+		Enabled   bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(data, &support); err != nil {
+		return err
+	}
+	s.Available = support.Available
+	s.Enabled = support.Enabled
+	return nil
+}
+
+func (s SmartSupport) Supported() bool {
+	return s.Available && s.Enabled
 }
 
 // Capacity finds the total capacity of the device in bytes, or 0 if unknown.
@@ -246,6 +292,20 @@ func (s *SmartInfo) Capacity() int64 {
 		return s.UserCapacity.Bytes
 	}
 	return 0
+}
+
+// CurrentTemperature returns the drive temperature in Celsius, and false if unknown.
+// It uses smartctl's top-level temperature when present, and only falls back to
+// the SCSI Environmental Reporting log when that object is null or missing, which
+// is the case for some SAS drives (e.g. SPC-5).
+func (s *SmartInfo) CurrentTemperature() (int64, bool) {
+	if s.Temperature != nil {
+		return s.Temperature.Current, true
+	}
+	if report, ok := s.ScsiEnvironmentalReports["temperature_1"]; ok && report.Current != nil {
+		return *report.Current, true
+	}
+	return 0, false
 }
 
 type UserCapacity struct {

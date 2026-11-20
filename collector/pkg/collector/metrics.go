@@ -15,6 +15,7 @@ import (
 	"github.com/analogj/scrutiny/collector/pkg/detect"
 	"github.com/analogj/scrutiny/collector/pkg/errors"
 	"github.com/analogj/scrutiny/collector/pkg/models"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 )
@@ -130,8 +131,10 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 
 	fullDeviceName := fmt.Sprintf("%s%s", detect.DevicePrefix(), deviceName)
 	args := strings.Fields(mc.config.GetCommandMetricsSmartArgs(fullDeviceName))
-	//only include the device type if its a non-standard one. In some cases ata drives are detected as scsi in docker, and metadata is lost.
-	if len(deviceType) > 0 && deviceType != "scsi" && deviceType != "ata" {
+	//only include the device type if its a non-standard one, or the user set it in the config file.
+	//In some cases ata drives are detected as scsi in docker, and metadata is lost, so a scanned scsi/ata type is dropped.
+	if len(deviceType) > 0 &&
+		((deviceType != "scsi" && deviceType != "ata") || mc.config.HasDeviceTypeOverride(fullDeviceName)) {
 		args = append(args, "--device", deviceType)
 	}
 	args = append(args, fullDeviceName)
@@ -139,25 +142,50 @@ func (mc *MetricsCollector) Collect(deviceWWN string, deviceName string, deviceT
 	result, err := mc.shell.Command(mc.logger, mc.config.GetString("commands.metrics_smartctl_bin"), args, "", os.Environ())
 	resultBytes := []byte(result)
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			// smartctl command exited with an error, we should still push the data to the API server
-			mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
-			mc.LogSmartctlExitCode(exitError.ExitCode())
-			if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
-				mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
-			}
-		} else {
+		exitError, isExitError := err.(*exec.ExitError)
+		if !isExitError {
 			mc.logger.Errorf("error while attempting to execute smartctl: %s\n", deviceName)
 			mc.logger.Errorf("ERROR MESSAGE: %v", err)
 			mc.logger.Errorf("IGNORING RESULT: %v", result)
+			return
 		}
-		return
-	} else {
-		//successful run, pass the results directly to webapp backend for parsing and processing.
-		if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
-			mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
+
+		// killed processes return exit code -1, which we'd decode as all bits being set
+		if exitError.ExitCode() < 0 {
+			mc.logger.Errorf("smartctl was terminated before it could finish processing %s: %v", deviceName, exitError)
+			return
+		}
+
+		exitStatus := collector.SmartctlExitStatus(exitError.ExitCode())
+		mc.logger.Errorf("smartctl returned an error code (%d) while processing %s\n", exitError.ExitCode(), deviceName)
+		mc.LogSmartctlExitStatus(exitStatus)
+
+		// non-fatal bits (failing disk, error logs) still come with a complete report worth publishing
+		if exitStatus.IsFatal() {
+			if exitStatus == collector.SmartctlExitStatusFailDev && hasPowerModeCheck(args) {
+				mc.logger.Infof("%s is in a low power mode, skipping collection\n", deviceName)
+				return
+			}
+
+			mc.logger.Errorf("smartctl output for %s is incomplete, not publishing results\n", deviceName)
+			return
 		}
 	}
+
+	if pubErr := mc.Publish(deviceWWN, resultBytes); pubErr != nil {
+		mc.logger.Errorf("Failed to publish SMART data for device %s: %v", deviceName, pubErr)
+	}
+}
+
+// if -n is passed and the drive is asleep, smartctl will return an exit code
+// with one of our "failure" bits set, even though it's just skipping the check
+func hasPowerModeCheck(args []string) bool {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--nocheck") || (strings.HasPrefix(arg, "-n") && !strings.HasPrefix(arg, "--")) {
+			return true
+		}
+	}
+	return false
 }
 
 func (mc *MetricsCollector) Publish(deviceWWN string, payload []byte) error {

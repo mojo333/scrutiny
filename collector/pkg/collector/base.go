@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,31 +36,8 @@ func (c *BaseCollector) postJson(url string, body interface{}, target interface{
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-// http://www.linuxguide.it/command_line/linux-manpage/do.php?file=smartctl#sect7
-func (c *BaseCollector) LogSmartctlExitCode(exitCode int) {
-	//exit code is a bitmask; check each bit independently so all set conditions are reported.
-	if exitCode&0x01 != 0 {
-		c.logger.Errorln("smartctl could not parse commandline")
-	}
-	if exitCode&0x02 != 0 {
-		c.logger.Errorln("smartctl could not open device")
-	}
-	if exitCode&0x04 != 0 {
-		c.logger.Errorln("smartctl detected a checksum error")
-	}
-	if exitCode&0x08 != 0 {
-		c.logger.Errorln("smartctl detected a failing disk ")
-	}
-	if exitCode&0x10 != 0 {
-		c.logger.Errorln("smartctl detected a disk in pre-fail")
-	}
-	if exitCode&0x20 != 0 {
-		c.logger.Errorln("smartctl detected a disk close to failure")
-	}
-	if exitCode&0x40 != 0 {
-		c.logger.Errorln("smartctl detected a error log with errors")
-	}
-	if exitCode&0x80 != 0 {
-		c.logger.Errorln("smartctl detected a self test log with errors")
+func (c *BaseCollector) LogSmartctlExitStatus(exitStatus collector.SmartctlExitStatus) {
+	for _, description := range exitStatus.Descriptions() {
+		c.logger.Errorln(description)
 	}
 }
