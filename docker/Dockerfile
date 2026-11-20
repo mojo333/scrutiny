@@ -14,7 +14,7 @@ RUN cd webapp/frontend-react && pnpm run build
 
 
 ######## Build the backend
-FROM golang:1.25-bookworm as backendbuild
+FROM golang:1.27-bookworm as backendbuild
 
 WORKDIR /go/src/github.com/analogj/scrutiny
 COPY --link . /go/src/github.com/analogj/scrutiny
