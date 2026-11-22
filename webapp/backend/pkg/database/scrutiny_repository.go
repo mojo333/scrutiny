@@ -13,10 +13,12 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/config"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models"
 	"github.com/glebarez/sqlite"
+	"github.com/gofrs/uuid/v5"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"github.com/sirupsen/logrus"
+
 	"gorm.io/gorm"
 )
 
@@ -293,16 +295,16 @@ func (sr *scrutinyRepository) ensureBucket(ctx context.Context, org *domain.Orga
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // get a map of all devices and associated SMART data
-func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*models.DeviceSummary, error) {
+func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[uuid.UUID]*models.DeviceSummary, error) {
 	devices, err := sr.GetDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	summaries := map[string]*models.DeviceSummary{}
+	summaries := map[uuid.UUID]*models.DeviceSummary{}
 
 	for _, device := range devices {
-		summaries[device.WWN] = &models.DeviceSummary{Device: device}
+		summaries[device.ScrutinyUUID] = &models.DeviceSummary{Device: device}
 	}
 
 	// Optimized query: only query the daily bucket with recent data
@@ -316,7 +318,7 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 		|> filter(fn: (r) => r["_field"] == "temp" or r["_field"] == "power_on_hours" or r["_field"] == "date")
 		|> last()
 		|> schema.fieldsAsCols()
-		|> group(columns: ["device_wwn"])
+		|> group(columns: ["scrutiny_uuid"])
 		|> yield(name: "last")
 		`,
 		sr.appConfig.GetString("web.influxdb.bucket"),
@@ -328,29 +330,30 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 		for result.Next() {
 			//get summary data from Influxdb.
 			//result.Record().Values()
-			if deviceWWN, ok := result.Record().Values()["device_wwn"]; ok {
-				wwn, wwnOk := deviceWWN.(string)
-				if !wwnOk {
-					continue
-				}
-
-				//ensure summaries is initialized for this wwn
-				if _, exists := summaries[wwn]; !exists {
-					summaries[wwn] = &models.DeviceSummary{}
-				}
-
-				smartSummary := &models.SmartSummary{}
-				if temp, tempOk := result.Record().Values()["temp"].(int64); tempOk {
-					smartSummary.Temp = temp
-				}
-				if poh, pohOk := result.Record().Values()["power_on_hours"].(int64); pohOk {
-					smartSummary.PowerOnHours = poh
-				}
-				if t, tOk := result.Record().Values()["_time"].(time.Time); tOk {
-					smartSummary.CollectorDate = t
-				}
-				summaries[wwn].SmartResults = smartSummary
+			scrutinyUUIDString, ok := result.Record().Values()["scrutiny_uuid"].(string)
+			if !ok {
+				continue
 			}
+			scrutinyUUID, uuidErr := uuid.FromString(scrutinyUUIDString)
+			if uuidErr != nil {
+				continue
+			}
+			//ensure summaries is initialized for this device
+			if _, exists := summaries[scrutinyUUID]; !exists {
+				summaries[scrutinyUUID] = &models.DeviceSummary{}
+			}
+
+			smartSummary := &models.SmartSummary{}
+			if temp, tempOk := result.Record().Values()["temp"].(int64); tempOk {
+				smartSummary.Temp = temp
+			}
+			if poh, pohOk := result.Record().Values()["power_on_hours"].(int64); pohOk {
+				smartSummary.PowerOnHours = poh
+			}
+			if t, tOk := result.Record().Values()["_time"].(time.Time); tOk {
+				smartSummary.CollectorDate = t
+			}
+			summaries[scrutinyUUID].SmartResults = smartSummary
 		}
 		if result.Err() != nil {
 			sr.logger.Errorf("GetSummary query error: %s", result.Err().Error())
@@ -359,12 +362,13 @@ func (sr *scrutinyRepository) GetSummary(ctx context.Context) (map[string]*model
 		return nil, err
 	}
 
-	deviceTempHistory, err := sr.GetSmartTemperatureHistory(ctx, DURATION_KEY_FOREVER)
+	// the dashboard chart opens on this duration; other durations come from /api/summary/temp
+	deviceTempHistory, err := sr.GetSmartTemperatureHistory(ctx, sr.appConfig.GetString(fmt.Sprintf("%s.dashboard_temperature_duration", config.DB_USER_SETTINGS_SUBKEY)))
 	if err != nil {
 		sr.logger.Errorf("Error retrieving temperature history: %v", err)
 	}
-	for wwn, tempHistory := range deviceTempHistory {
-		if summary, exists := summaries[wwn]; exists {
+	for scrutinyUUID, tempHistory := range deviceTempHistory {
+		if summary, exists := summaries[scrutinyUUID]; exists {
 			summary.TempHistory = tempHistory
 		}
 	}
@@ -398,7 +402,6 @@ func (sr *scrutinyRepository) lookupBucketName(durationKey string) string {
 }
 
 func (sr *scrutinyRepository) lookupDuration(durationKey string) []string {
-
 	switch durationKey {
 	case DURATION_KEY_DAY:
 		//data stored in the last day
@@ -419,11 +422,13 @@ func (sr *scrutinyRepository) lookupDuration(durationKey string) []string {
 	return []string{"-1w", "now()"}
 }
 
-func (sr *scrutinyRepository) lookupAggregateWindow(durationKey string) string {
+func (sr *scrutinyRepository) lookupResolution(durationKey string) string {
 	switch durationKey {
 	case DURATION_KEY_DAY:
-		return "15m"
+		// Return data with higher resolution for daily summaries
+		return "10m"
 	default:
+		// Return data with 1h resolution for other summaries
 		return "1h"
 	}
 }
@@ -431,7 +436,7 @@ func (sr *scrutinyRepository) lookupAggregateWindow(durationKey string) string {
 func (sr *scrutinyRepository) lookupNestedDurationKeys(durationKey string) []string {
 	switch durationKey {
 	case DURATION_KEY_DAY:
-		//all data is stored in a single bucket
+		//all data is stored in a single bucket, but we want a finer resolution
 		return []string{DURATION_KEY_DAY}
 	case DURATION_KEY_WEEK:
 		//all data is stored in a single bucket

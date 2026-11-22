@@ -18,7 +18,9 @@ import (
 	mock_config "github.com/analogj/scrutiny/webapp/backend/pkg/config/mock"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/collector"
+	"github.com/analogj/scrutiny/webapp/backend/pkg/notify"
 	"github.com/analogj/scrutiny/webapp/backend/pkg/web"
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -35,7 +37,7 @@ docker run --rm -it -p 8086:8086 \
 -e DOCKER_INFLUXDB_INIT_ORG=scrutiny \
 -e DOCKER_INFLUXDB_INIT_BUCKET=metrics \
 -e DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token \
-influxdb:2.0
+influxdb:2.2
 */
 
 //func TestMain(m *testing.M) {
@@ -93,6 +95,11 @@ func (suite *ServerTestSuite) TestHealthRoute() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").Return(path.Join(parentPath, "scrutiny_test.db")).AnyTimes()
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").Return(parentPath).AnyTimes()
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -136,6 +143,11 @@ func (suite *ServerTestSuite) TestRegisterDevicesRoute() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").Return(path.Join(parentPath, "scrutiny_test.db")).AnyTimes()
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").Return(parentPath).AnyTimes()
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -178,6 +190,11 @@ func (suite *ServerTestSuite) TestUploadDeviceMetricsRoute() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -217,7 +234,7 @@ func (suite *ServerTestSuite) TestUploadDeviceMetricsRoute() {
 	require.Equal(suite.T(), 200, wr.Code)
 
 	mr := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/0x5000cca264eb01d7/smart", metricsfile)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/9a4d34b5-b2ee-51ef-8506-90eea09be417/smart", metricsfile)
 	router.ServeHTTP(mr, req)
 	require.Equal(suite.T(), 200, mr.Code)
 
@@ -232,6 +249,11 @@ func (suite *ServerTestSuite) TestPopulateMultiple() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	//fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return("testdata/scrutiny_test.db")
 	fakeConfig.EXPECT().GetStringSlice("notify.urls").Return([]string{}).AnyTimes()
 	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.notify_level", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsNotifyLevelFail))
@@ -276,28 +298,31 @@ func (suite *ServerTestSuite) TestPopulateMultiple() {
 	router.ServeHTTP(wr, req)
 	require.Equal(suite.T(), 200, wr.Code)
 
+	// NOTE: The scrutiny_uuid's below must come from devicesfile because those get inserted into the database.
+	// They don't match the scrutiny_uuid that would be derived from the smart info files because the drives
+	// in those files don't match those in the registration. Currently, scrutiny does not reconcile the two.
 	mr := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/0x5000cca264eb01d7/smart", metricsfile)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/ecfaaf20-d1f6-558b-b33a-3e8db19a6c2c/smart", metricsfile)
 	router.ServeHTTP(mr, req)
 	require.Equal(suite.T(), 200, mr.Code)
 
 	fr := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/0x5000cca264ec3183/smart", failfile)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/3ea22b35-682b-49fb-a655-abffed108e48/smart", failfile)
 	router.ServeHTTP(fr, req)
 	require.Equal(suite.T(), 200, fr.Code)
 
 	nr := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/0x5002538e40a22954/smart", nvmefile)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/d8796fe7-2422-520c-8991-e970993dad3e/smart", nvmefile)
 	router.ServeHTTP(nr, req)
 	require.Equal(suite.T(), 200, nr.Code)
 
 	sr := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/0x5000cca252c859cc/smart", scsifile)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/00328b73-9f8a-53ad-8f20-8d0b1be00f47/smart", scsifile)
 	router.ServeHTTP(sr, req)
 	require.Equal(suite.T(), 200, sr.Code)
 
 	s2r := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/0x5000cca264ebc248/smart", scsi2file)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/e5ccc378-24fc-5a9d-b1ce-8732096a9ea5/smart", scsi2file)
 	router.ServeHTTP(s2r, req)
 	require.Equal(suite.T(), 200, s2r.Code)
 
@@ -336,6 +361,11 @@ func (suite *ServerTestSuite) TestSendTestNotificationRoute_WebhookFailure() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -381,6 +411,11 @@ func (suite *ServerTestSuite) TestSendTestNotificationRoute_ScriptFailure() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -426,6 +461,11 @@ func (suite *ServerTestSuite) TestSendTestNotificationRoute_ScriptSuccess() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -471,6 +511,11 @@ func (suite *ServerTestSuite) TestSendTestNotificationRoute_ShoutrrrFailure() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -515,6 +560,11 @@ func (suite *ServerTestSuite) TestGetDevicesSummaryRoute_Nvme() {
 	fakeConfig := mock_config.NewMockInterface(mockCtrl)
 	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
 	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
 	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
 	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
 	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
@@ -524,6 +574,7 @@ func (suite *ServerTestSuite) TestGetDevicesSummaryRoute_Nvme() {
 	fakeConfig.EXPECT().GetString("web.influxdb.token").Return("my-super-secret-auth-token").AnyTimes()
 	fakeConfig.EXPECT().GetString("web.influxdb.org").Return("scrutiny").AnyTimes()
 	fakeConfig.EXPECT().GetString("web.influxdb.bucket").Return("metrics").AnyTimes()
+	fakeConfig.EXPECT().GetString("user.dashboard_temperature_duration").Return("week").AnyTimes()
 	fakeConfig.EXPECT().GetBool("user.metrics.repeat_notifications").Return(true).AnyTimes()
 	fakeConfig.EXPECT().GetBool("user.collector.discard_sct_temp_history").Return(false).AnyTimes()
 	fakeConfig.EXPECT().GetBool("web.influxdb.tls.insecure_skip_verify").Return(false).AnyTimes()
@@ -556,7 +607,7 @@ func (suite *ServerTestSuite) TestGetDevicesSummaryRoute_Nvme() {
 	require.Equal(suite.T(), 200, wr.Code)
 
 	mr := httptest.NewRecorder()
-	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/a4c8e8ed-11a0-4c97-9bba-306440f1b944/smart", metricsfile)
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/bde1d2d2-7e5c-525a-8327-6adbfa382637/smart", metricsfile)
 	router.ServeHTTP(mr, req)
 	require.Equal(suite.T(), 200, mr.Code)
 
@@ -569,6 +620,335 @@ func (suite *ServerTestSuite) TestGetDevicesSummaryRoute_Nvme() {
 	require.NoError(suite.T(), err)
 
 	//assert
-	require.Equal(suite.T(), "a4c8e8ed-11a0-4c97-9bba-306440f1b944", deviceSummary.Data.Summary["a4c8e8ed-11a0-4c97-9bba-306440f1b944"].Device.WWN)
-	require.Equal(suite.T(), pkg.DeviceStatusPassed, deviceSummary.Data.Summary["a4c8e8ed-11a0-4c97-9bba-306440f1b944"].Device.DeviceStatus)
+	deviceUUIDString := "bde1d2d2-7e5c-525a-8327-6adbfa382637"
+	deviceUUID := uuid.Must(uuid.FromString(deviceUUIDString))
+	require.Equal(suite.T(), deviceUUID, deviceSummary.Data.Summary[deviceUUIDString].Device.ScrutinyUUID)
+	require.Equal(suite.T(), pkg.DeviceStatusPassed, deviceSummary.Data.Summary[deviceUUIDString].Device.DeviceStatus)
+}
+
+// TestGetDevicesSummaryRoute_DeviceStatusResetsToPassing is a regression test: a device that was
+// previously recorded as failed must be reset back to passing once it reports clean SMART data again.
+func (suite *ServerTestSuite) TestGetDevicesSummaryRoute_DeviceStatusResetsToPassing() {
+	//setup
+	parentPath, _ := os.MkdirTemp("", "")
+	defer os.RemoveAll(parentPath)
+	mockCtrl := gomock.NewController(suite.T())
+	fakeConfig := mock_config.NewMockInterface(mockCtrl)
+	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
+	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
+	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
+	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
+	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.scheme").Return("http").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.port").Return("8086").AnyTimes()
+	fakeConfig.EXPECT().IsSet("web.influxdb.token").Return(true).AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.token").Return("my-super-secret-auth-token").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.org").Return("scrutiny").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.bucket").Return("metrics").AnyTimes()
+	fakeConfig.EXPECT().GetString("user.dashboard_temperature_duration").Return("week").AnyTimes()
+	fakeConfig.EXPECT().GetBool("user.metrics.repeat_notifications").Return(true).AnyTimes()
+	fakeConfig.EXPECT().GetBool("user.collector.discard_sct_temp_history").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetBool("web.influxdb.tls.insecure_skip_verify").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetBool("web.influxdb.retention_policy").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetStringSlice("notify.urls").AnyTimes().Return([]string{})
+	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.notify_level", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsNotifyLevelFail))
+	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.status_filter_attributes", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsStatusFilterAttributesAll))
+	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.status_threshold", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsStatusThresholdBoth))
+
+	if _, isGithubActions := os.LookupEnv("GITHUB_ACTIONS"); isGithubActions {
+		// when running test suite in github actions, we run an influxdb service as a sidecar.
+		fakeConfig.EXPECT().GetString("web.influxdb.host").Return("influxdb").AnyTimes()
+	} else {
+		fakeConfig.EXPECT().GetString("web.influxdb.host").Return("localhost").AnyTimes()
+	}
+
+	ae := web.AppEngine{
+		Config: fakeConfig,
+	}
+	router := ae.Setup(logrus.WithField("test", suite.T().Name()))
+	devicesfile, err := os.Open("testdata/register-devices-req.json")
+	require.NoError(suite.T(), err)
+
+	// smart-fail2.json reports a failing device, smart-ata.json reports the same (ATA) device passing.
+	failfile := helperReadSmartDataFileFixTimestamp(suite.T(), "../models/testdata/smart-fail2.json")
+	passfile := helperReadSmartDataFileFixTimestamp(suite.T(), "../models/testdata/smart-ata.json")
+
+	deviceUUIDString := "3ea22b35-682b-49fb-a655-abffed108e48"
+
+	//test - register devices
+	wr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", suite.Basepath+"/api/devices/register", devicesfile)
+	router.ServeHTTP(wr, req)
+	require.Equal(suite.T(), 200, wr.Code)
+
+	//test - upload failing SMART data
+	fr := httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/"+deviceUUIDString+"/smart", failfile)
+	router.ServeHTTP(fr, req)
+	require.Equal(suite.T(), 200, fr.Code)
+
+	//assert - device is now failed
+	failSummary := helperGetDeviceSummary(suite.T(), router, suite.Basepath)
+	require.Equal(suite.T(), pkg.DeviceStatusFailedScrutiny|pkg.DeviceStatusFailedSmart, failSummary.Data.Summary[deviceUUIDString].Device.DeviceStatus)
+
+	//test - upload clean SMART data for the same device
+	pr := httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", suite.Basepath+"/api/device/"+deviceUUIDString+"/smart", passfile)
+	router.ServeHTTP(pr, req)
+	require.Equal(suite.T(), 200, pr.Code)
+
+	//assert - device status is reset back to passing
+	passSummary := helperGetDeviceSummary(suite.T(), router, suite.Basepath)
+	require.Equal(suite.T(), pkg.DeviceStatusPassed, passSummary.Data.Summary[deviceUUIDString].Device.DeviceStatus)
+}
+
+func (suite *ServerTestSuite) TestDeviceFriendlyNameRoute() {
+	//setup
+	parentPath, _ := os.MkdirTemp("", "")
+	defer os.RemoveAll(parentPath)
+	mockCtrl := gomock.NewController(suite.T())
+	fakeConfig := mock_config.NewMockInterface(mockCtrl)
+	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
+	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
+	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
+	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
+	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.scheme").Return("http").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.port").Return("8086").AnyTimes()
+	fakeConfig.EXPECT().IsSet("web.influxdb.token").Return(true).AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.token").Return("my-super-secret-auth-token").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.org").Return("scrutiny").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.bucket").Return("metrics").AnyTimes()
+	fakeConfig.EXPECT().GetString("user.dashboard_temperature_duration").Return("week").AnyTimes()
+	fakeConfig.EXPECT().GetBool("user.metrics.repeat_notifications").Return(true).AnyTimes()
+	fakeConfig.EXPECT().GetBool("user.collector.discard_sct_temp_history").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetBool("web.influxdb.tls.insecure_skip_verify").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetBool("web.influxdb.retention_policy").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetStringSlice("notify.urls").AnyTimes().Return([]string{})
+	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.notify_level", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsNotifyLevelFail))
+	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.status_filter_attributes", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsStatusFilterAttributesAll))
+	fakeConfig.EXPECT().GetInt(fmt.Sprintf("%s.metrics.status_threshold", config.DB_USER_SETTINGS_SUBKEY)).AnyTimes().Return(int(pkg.MetricsStatusThresholdBoth))
+
+	if _, isGithubActions := os.LookupEnv("GITHUB_ACTIONS"); isGithubActions {
+		// when running test suite in github actions, we run an influxdb service as a sidecar.
+		fakeConfig.EXPECT().GetString("web.influxdb.host").Return("influxdb").AnyTimes()
+	} else {
+		fakeConfig.EXPECT().GetString("web.influxdb.host").Return("localhost").AnyTimes()
+	}
+
+	ae := web.AppEngine{
+		Config: fakeConfig,
+	}
+	router := ae.Setup(logrus.WithField("test", suite.T().Name()))
+	devicesfile, err := os.Open("testdata/register-devices-req.json")
+	require.NoError(suite.T(), err)
+
+	deviceUUIDString := "3ea22b35-682b-49fb-a655-abffed108e48"
+	url := suite.Basepath + "/api/device/" + deviceUUIDString + "/friendly_name"
+	post := func(url string, name string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", url, strings.NewReader(`{"friendly_name": "`+name+`"}`))
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	//test - register devices
+	wr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", suite.Basepath+"/api/devices/register", devicesfile)
+	router.ServeHTTP(wr, req)
+	require.Equal(suite.T(), 200, wr.Code)
+
+	friendlyName := func() string {
+		return helperGetDeviceSummary(suite.T(), router, suite.Basepath).Data.Summary[deviceUUIDString].Device.FriendlyName
+	}
+
+	//assert - unset by default
+	require.Empty(suite.T(), friendlyName())
+
+	//test - set (whitespace is trimmed)
+	w := post(url, "  Backup Disk ")
+	require.Equal(suite.T(), 200, w.Code)
+	require.JSONEq(suite.T(), `{"success":true,"data":{"friendly_name":"Backup Disk"}}`, w.Body.String())
+	require.Equal(suite.T(), "Backup Disk", friendlyName())
+
+	//test - empty clears
+	require.Equal(suite.T(), 200, post(url, "").Code)
+	require.Empty(suite.T(), friendlyName())
+
+	//assert - unknown and invalid uuids
+	require.Equal(suite.T(), 404, post(suite.Basepath+"/api/device/00000000-0000-0000-0000-000000000000/friendly_name", "x").Code)
+	require.Equal(suite.T(), 400, post(suite.Basepath+"/api/device/not-a-uuid/friendly_name", "x").Code)
+}
+
+func helperGetDeviceSummary(t *testing.T, router http.Handler, basepath string) models.DeviceSummaryWrapper {
+	t.Helper()
+	sr := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", basepath+"/api/summary", nil)
+	router.ServeHTTP(sr, req)
+	require.Equal(t, 200, sr.Code)
+
+	var deviceSummary models.DeviceSummaryWrapper
+	err := json.Unmarshal(sr.Body.Bytes(), &deviceSummary)
+	require.NoError(t, err)
+	return deviceSummary
+}
+
+func (suite *ServerTestSuite) TestCollectorErrorRoute() {
+	//setup
+	parentPath, _ := os.MkdirTemp("", "")
+	defer os.RemoveAll(parentPath)
+	mockCtrl := gomock.NewController(suite.T())
+	fakeConfig := mock_config.NewMockInterface(mockCtrl)
+	fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
+	fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDeviceConfig(gomock.Any()).AnyTimes().Return(nil)
+	fakeConfig.EXPECT().GetDevices().AnyTimes().Return(nil, nil)
+	fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+	fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
+	fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
+	fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
+	fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.scheme").Return("http").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.port").Return("8086").AnyTimes()
+	fakeConfig.EXPECT().IsSet("web.influxdb.token").Return(true).AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.token").Return("my-super-secret-auth-token").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.org").Return("scrutiny").AnyTimes()
+	fakeConfig.EXPECT().GetString("web.influxdb.bucket").Return("metrics").AnyTimes()
+	fakeConfig.EXPECT().GetBool("web.influxdb.tls.insecure_skip_verify").Return(false).AnyTimes()
+	fakeConfig.EXPECT().GetBool("web.influxdb.retention_policy").Return(false).AnyTimes()
+	if _, isGithubActions := os.LookupEnv("GITHUB_ACTIONS"); isGithubActions {
+		// when running test suite in github actions, we run an influxdb service as a sidecar.
+		fakeConfig.EXPECT().GetString("web.influxdb.host").Return("influxdb").AnyTimes()
+	} else {
+		fakeConfig.EXPECT().GetString("web.influxdb.host").Return("localhost").AnyTimes()
+	}
+
+	notified := make(chan notify.Payload, 1)
+	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload notify.Payload
+		require.NoError(suite.T(), json.NewDecoder(r.Body).Decode(&payload))
+		notified <- payload
+	}))
+	defer webhookServer.Close()
+	fakeConfig.EXPECT().GetStringSlice("notify.urls").AnyTimes().Return([]string{webhookServer.URL})
+
+	ae := web.AppEngine{
+		Config: fakeConfig,
+	}
+	router := ae.Setup(logrus.WithField("test", suite.T().Name()))
+
+	//test
+	errorPayload, err := json.Marshal(collector.CollectorError{
+		Error:      "smartctl could not open the device",
+		HostId:     "testhost",
+		DeviceName: "/dev/sdb",
+	})
+	require.NoError(suite.T(), err)
+
+	er := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", suite.Basepath+"/api/collector/error", bytes.NewReader(errorPayload))
+	router.ServeHTTP(er, req)
+
+	//assert
+	require.Equal(suite.T(), 200, er.Code)
+	select {
+	case payload := <-notified:
+		require.Equal(suite.T(), notify.NotifyFailureTypeCollectorError, payload.FailureType)
+		require.Contains(suite.T(), payload.Message, "smartctl could not open the device")
+		require.Contains(suite.T(), payload.Subject, "/dev/sdb")
+	case <-time.After(10 * time.Second):
+		suite.T().Fatal("timed out waiting for the collector error notification")
+	}
+}
+
+func (suite *ServerTestSuite) TestCollectorErrorRoute_NotifyDisabled() {
+	const disabledUUID = "9a4d34b5-b2ee-51ef-8506-90eea09be417"
+	for name, tc := range map[string]struct {
+		onSmartctlError bool
+		scrutinyUUID    string
+	}{
+		"device setting": {onSmartctlError: true, scrutinyUUID: disabledUUID},
+		// e.g. `smartctl --scan` failed, so there's no device
+		"global setting": {onSmartctlError: false},
+	} {
+		suite.Run(name, func() {
+			//setup
+			parentPath, _ := os.MkdirTemp("", "")
+			defer os.RemoveAll(parentPath)
+			mockCtrl := gomock.NewController(suite.T())
+			fakeConfig := mock_config.NewMockInterface(mockCtrl)
+			fakeConfig.EXPECT().SetDefault(gomock.Any(), gomock.Any()).AnyTimes()
+			fakeConfig.EXPECT().UnmarshalKey(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+			disabled := false
+			device := config.DeviceConfig{ScrutinyUUID: uuid.FromStringOrNil(disabledUUID)}
+			device.Notifications.OnSmartctlError = &disabled
+			fakeConfig.EXPECT().GetDeviceConfig(uuid.FromStringOrNil(disabledUUID)).AnyTimes().Return(&device)
+			fakeConfig.EXPECT().GetDevices().AnyTimes().Return([]config.DeviceConfig{device}, nil)
+			fakeConfig.EXPECT().GetBool("notify.on_smartctl_error").AnyTimes().Return(tc.onSmartctlError)
+			fakeConfig.EXPECT().GetBool("notify.on_missed_upload").AnyTimes().Return(true)
+			fakeConfig.EXPECT().GetDuration("notify.upload_period").AnyTimes().Return(time.Duration(0))
+			fakeConfig.EXPECT().GetString("web.database.location").AnyTimes().Return(path.Join(parentPath, "scrutiny_test.db"))
+			fakeConfig.EXPECT().GetString("web.src.frontend.path").AnyTimes().Return(parentPath)
+			fakeConfig.EXPECT().GetString("web.listen.basepath").Return(suite.Basepath).AnyTimes()
+			fakeConfig.EXPECT().GetString("web.influxdb.scheme").Return("http").AnyTimes()
+			fakeConfig.EXPECT().GetString("web.influxdb.port").Return("8086").AnyTimes()
+			fakeConfig.EXPECT().IsSet("web.influxdb.token").Return(true).AnyTimes()
+			fakeConfig.EXPECT().GetString("web.influxdb.token").Return("my-super-secret-auth-token").AnyTimes()
+			fakeConfig.EXPECT().GetString("web.influxdb.org").Return("scrutiny").AnyTimes()
+			fakeConfig.EXPECT().GetString("web.influxdb.bucket").Return("metrics").AnyTimes()
+			fakeConfig.EXPECT().GetBool("web.influxdb.tls.insecure_skip_verify").Return(false).AnyTimes()
+			fakeConfig.EXPECT().GetBool("web.influxdb.retention_policy").Return(false).AnyTimes()
+			if _, isGithubActions := os.LookupEnv("GITHUB_ACTIONS"); isGithubActions {
+				// when running test suite in github actions, we run an influxdb service as a sidecar.
+				fakeConfig.EXPECT().GetString("web.influxdb.host").Return("influxdb").AnyTimes()
+			} else {
+				fakeConfig.EXPECT().GetString("web.influxdb.host").Return("localhost").AnyTimes()
+			}
+
+			notified := make(chan notify.Payload, 1)
+			webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var payload notify.Payload
+				require.NoError(suite.T(), json.NewDecoder(r.Body).Decode(&payload))
+				notified <- payload
+			}))
+			defer webhookServer.Close()
+			fakeConfig.EXPECT().GetStringSlice("notify.urls").AnyTimes().Return([]string{webhookServer.URL})
+
+			ae := web.AppEngine{
+				Config: fakeConfig,
+			}
+			router := ae.Setup(logrus.WithField("test", suite.T().Name()))
+
+			//test
+			errorPayload, err := json.Marshal(collector.CollectorError{
+				Error:        "smartctl could not open the device",
+				HostId:       "testhost",
+				DeviceName:   "/dev/sdb",
+				ScrutinyUUID: tc.scrutinyUUID,
+			})
+			require.NoError(suite.T(), err)
+
+			er := httptest.NewRecorder()
+			req, _ := http.NewRequest("POST", suite.Basepath+"/api/collector/error", bytes.NewReader(errorPayload))
+			router.ServeHTTP(er, req)
+
+			//assert
+			require.Equal(suite.T(), 200, er.Code)
+			select {
+			case <-notified:
+				suite.T().Fatal("on_smartctl_error is disabled and should not notify")
+			case <-time.After(500 * time.Millisecond):
+			}
+		})
+	}
 }

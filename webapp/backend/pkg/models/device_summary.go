@@ -6,6 +6,7 @@ import (
 	"github.com/analogj/scrutiny/webapp/backend/pkg/models/measurements"
 )
 
+// This is used in server_test.go
 type DeviceSummaryWrapper struct {
 	Success bool    `json:"success"`
 	Errors  []error `json:"errors"`

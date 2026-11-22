@@ -210,3 +210,23 @@ func TestConfiguration_HasDeviceTypeOverride_WithoutDeviceType(t *testing.T) {
 	//assert
 	require.False(t, testConfig.HasDeviceTypeOverride("/dev/sda"), "should not match a device configured without a type")
 }
+
+func TestConfiguration_NotifyOnSmartctlError_Default(t *testing.T) {
+	t.Parallel()
+
+	testConfig, _ := config.Create()
+	require.NoError(t, testConfig.Init())
+
+	//opt-out, so a config that says nothing notifies
+	require.True(t, testConfig.GetBool("notify.on_smartctl_error"))
+}
+
+func TestConfiguration_NotifyOnSmartctlError(t *testing.T) {
+	t.Parallel()
+
+	testConfig, _ := config.Create()
+	require.NoError(t, testConfig.Init())
+	require.NoError(t, testConfig.ReadConfig("testdata/collector_notify_on_smartctl_error.yaml"))
+
+	require.False(t, testConfig.GetBool("notify.on_smartctl_error"))
+}

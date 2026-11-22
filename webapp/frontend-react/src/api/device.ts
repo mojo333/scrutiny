@@ -5,79 +5,79 @@ import { isDemoMode, demoMuteDevice, demoUnmuteDevice, demoArchiveDevice, demoUn
 /**
  * Get device details including SMART data
  */
-export async function getDeviceDetail(wwn: string): Promise<DeviceDetailsResponseWrapper> {
-  const { data } = await api.get<DeviceDetailsResponseWrapper>(`/device/${wwn}/details`);
+export async function getDeviceDetail(scrutinyUuid: string): Promise<DeviceDetailsResponseWrapper> {
+  const { data } = await api.get<DeviceDetailsResponseWrapper>(`/device/${scrutinyUuid}/details`);
   return data;
 }
 
 /**
  * Mute device notifications
  */
-export async function muteDevice(wwn: string): Promise<{ success: boolean }> {
+export async function muteDevice(scrutinyUuid: string): Promise<{ success: boolean }> {
   if (isDemoMode()) {
-    demoMuteDevice(wwn);
+    demoMuteDevice(scrutinyUuid);
     return { success: true };
   }
-  const { data } = await api.post<{ success: boolean }>(`/device/${wwn}/mute`, {});
+  const { data } = await api.post<{ success: boolean }>(`/device/${scrutinyUuid}/mute`, {});
   return data;
 }
 
 /**
  * Unmute device notifications
  */
-export async function unmuteDevice(wwn: string): Promise<{ success: boolean }> {
+export async function unmuteDevice(scrutinyUuid: string): Promise<{ success: boolean }> {
   if (isDemoMode()) {
-    demoUnmuteDevice(wwn);
+    demoUnmuteDevice(scrutinyUuid);
     return { success: true };
   }
-  const { data } = await api.post<{ success: boolean }>(`/device/${wwn}/unmute`, {});
+  const { data } = await api.post<{ success: boolean }>(`/device/${scrutinyUuid}/unmute`, {});
   return data;
 }
 
 /**
  * Set custom device label
  */
-export async function setDeviceLabel(wwn: string, label: string): Promise<{ success: boolean }> {
+export async function setDeviceLabel(scrutinyUuid: string, label: string): Promise<{ success: boolean }> {
   if (isDemoMode()) {
-    demoSetDeviceLabel(wwn, label);
+    demoSetDeviceLabel(scrutinyUuid, label);
     return { success: true };
   }
-  const { data } = await api.post<{ success: boolean }>(`/device/${wwn}/label`, { label });
+  const { data } = await api.post<{ success: boolean }>(`/device/${scrutinyUuid}/label`, { label });
   return data;
 }
 
 /**
  * Archive device
  */
-export async function archiveDevice(wwn: string): Promise<{ success: boolean }> {
+export async function archiveDevice(scrutinyUuid: string): Promise<{ success: boolean }> {
   if (isDemoMode()) {
-    demoArchiveDevice(wwn);
+    demoArchiveDevice(scrutinyUuid);
     return { success: true };
   }
-  const { data } = await api.post<{ success: boolean }>(`/device/${wwn}/archive`, {});
+  const { data } = await api.post<{ success: boolean }>(`/device/${scrutinyUuid}/archive`, {});
   return data;
 }
 
 /**
  * Unarchive device
  */
-export async function unarchiveDevice(wwn: string): Promise<{ success: boolean }> {
+export async function unarchiveDevice(scrutinyUuid: string): Promise<{ success: boolean }> {
   if (isDemoMode()) {
-    demoUnarchiveDevice(wwn);
+    demoUnarchiveDevice(scrutinyUuid);
     return { success: true };
   }
-  const { data } = await api.post<{ success: boolean }>(`/device/${wwn}/unarchive`, {});
+  const { data } = await api.post<{ success: boolean }>(`/device/${scrutinyUuid}/unarchive`, {});
   return data;
 }
 
 /**
  * Delete device
  */
-export async function deleteDevice(wwn: string): Promise<{ success: boolean }> {
+export async function deleteDevice(scrutinyUuid: string): Promise<{ success: boolean }> {
   if (isDemoMode()) {
-    demoDeleteDevice(wwn);
+    demoDeleteDevice(scrutinyUuid);
     return { success: true };
   }
-  const { data } = await api.delete<{ success: boolean }>(`/device/${wwn}`);
+  const { data } = await api.delete<{ success: boolean }>(`/device/${scrutinyUuid}`);
   return data;
 }

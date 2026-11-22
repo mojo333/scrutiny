@@ -23,7 +23,7 @@ export const dashboardRoute = createRoute({
 // Device detail route
 export const deviceDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/device/$wwn',
+  path: '/device/$scrutinyUuid',
   component: DeviceDetail,
 });
 

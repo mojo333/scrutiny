@@ -24,6 +24,7 @@ export const MOCK_DEVICE_SUMMARY: Record<string, DeviceSummaryModel> = {
   '0x5000c500a8f7c8c8': {
     device: {
       wwn: '0x5000c500a8f7c8c8',
+      scrutiny_uuid: '0x5000c500a8f7c8c8',
       device_name: 'sda',
       device_uuid: 'f8d5e4c3-b2a1-4567-8901-2345678901ab',
       device_serial_id: 'ata-Samsung_SSD_870_EVO_1TB_S5YJNX0R123456',
@@ -54,6 +55,7 @@ export const MOCK_DEVICE_SUMMARY: Record<string, DeviceSummaryModel> = {
   '0x5000c500a8f7d9d9': {
     device: {
       wwn: '0x5000c500a8f7d9d9',
+      scrutiny_uuid: '0x5000c500a8f7d9d9',
       device_name: 'sdb',
       device_uuid: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
       device_serial_id: 'ata-WDC_WD40EFRX-68N32N0_WD-WX12D81F5678',
@@ -84,6 +86,7 @@ export const MOCK_DEVICE_SUMMARY: Record<string, DeviceSummaryModel> = {
   '0x5000c500d1e2f3a4': {
     device: {
       wwn: '0x5000c500d1e2f3a4',
+      scrutiny_uuid: '0x5000c500d1e2f3a4',
       device_name: 'sdc',
       device_uuid: 'b2c3d4e5-f6a7-8901-2345-67890abcdef1',
       device_serial_id: 'ata-TOSHIBA_HDWE150_Y9GVK7BNFBXS',
@@ -114,6 +117,7 @@ export const MOCK_DEVICE_SUMMARY: Record<string, DeviceSummaryModel> = {
   '0x5000c500e2f3a4b5': {
     device: {
       wwn: '0x5000c500e2f3a4b5',
+      scrutiny_uuid: '0x5000c500e2f3a4b5',
       device_name: 'sdd',
       device_uuid: 'c3d4e5f6-a7b8-9012-3456-7890abcdef12',
       device_serial_id: 'ata-ST5000DM000-1FK178_Z8J0ABCD',
@@ -144,6 +148,7 @@ export const MOCK_DEVICE_SUMMARY: Record<string, DeviceSummaryModel> = {
   '0x50014ee2b5c7e123': {
     device: {
       wwn: '0x50014ee2b5c7e123',
+      scrutiny_uuid: '0x50014ee2b5c7e123',
       device_name: 'nvme0n1',
       device_uuid: 'd4e5f6a7-b8c9-0123-4567-890abcdef123',
       device_serial_id: 'nvme-Samsung_SSD_980_PRO_2TB_S69ANF0R789012',
@@ -174,6 +179,7 @@ export const MOCK_DEVICE_SUMMARY: Record<string, DeviceSummaryModel> = {
   '0x5000c500b3a8e456': {
     device: {
       wwn: '0x5000c500b3a8e456',
+      scrutiny_uuid: '0x5000c500b3a8e456',
       device_name: 'sdc',
       device_uuid: 'e5f6a7b8-c9d0-1234-5678-90abcdef1234',
       device_serial_id: 'ata-ST8000VN004-2M2101_ZCT2M5JK',

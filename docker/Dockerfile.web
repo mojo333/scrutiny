@@ -13,17 +13,25 @@ COPY --link webapp/frontend-react ./webapp/frontend-react
 RUN cd webapp/frontend-react && pnpm run build
 
 ######## Build the backend
-FROM golang:1.27-bookworm as backendbuild
+FROM golang:1.27-trixie AS backendbuild
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /go/src/github.com/analogj/scrutiny
-COPY --link . /go/src/github.com/analogj/scrutiny
+COPY --link Makefile /go/src/github.com/analogj/scrutiny/
+COPY --link go.mod go.sum /go/src/github.com/analogj/scrutiny/
+COPY --link collector /go/src/github.com/analogj/scrutiny/collector
+COPY --link webapp/backend /go/src/github.com/analogj/scrutiny/webapp/backend
 
 RUN apt-get update && apt-get install -y file && rm -rf /var/lib/apt/lists/*
-RUN make binary-clean binary-all WEB_BINARY_NAME=scrutiny
+# this stage isn't pinned to --platform=$BUILDPLATFORM, so buildx already runs it
+# natively/emulated per target platform; GOOS/GOARCH here only feed the version
+# banner's ldflags (main.goos/main.goarch), not cross-compilation
+RUN make binary-clean binary-all WEB_BINARY_NAME=scrutiny GOOS=$TARGETOS GOARCH=$TARGETARCH
 
 
 ######## Combine build artifacts in runtime image
-FROM debian:bookworm-slim as runtime
+FROM debian:trixie-slim as runtime
 EXPOSE 8080
 WORKDIR /opt/scrutiny
 ENV PATH="/opt/scrutiny/bin:${PATH}"

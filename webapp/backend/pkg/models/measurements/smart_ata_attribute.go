@@ -175,10 +175,8 @@ func (sa *SmartAtaAttribute) ValidateThreshold() {
 
 	for _, obsThresh := range smartMetadata.ObservedThresholds {
 
-		//check if "value" is in this bucket. Low is inclusive so that a value equal
-		//to the lowest bucket's Low is not dropped; buckets are ordered and we return
-		//on the first match, so values on a shared boundary map to the earlier bucket
-		//(identical to the previous behaviour for all interior values).
+		//check if "value" is in this bucket. Bounds are inclusive on both ends; since the first
+		//matching bucket wins, a value on a shared edge still lands in the earlier bucket.
 		if obsThresh.Low <= value && value <= obsThresh.High {
 			sa.FailureRate = obsThresh.AnnualFailureRate
 

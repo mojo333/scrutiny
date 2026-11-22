@@ -109,7 +109,7 @@ func (sr *scrutinyRepository) DownsampleScript(aggregationType string, name stri
 	  smart_data = from(bucket: sourceBucket)
 	  |> range(start: rangeStart, stop: rangeEnd)
 	  |> filter(fn: (r) => r["_measurement"] == "smart" )
-	  |> group(columns: ["device_wwn", "_field"])
+	  |> group(columns: ["scrutiny_uuid", "_field"])
 
 	  non_numeric_smart_data = smart_data
 	    |> filter(fn: (r) => types.isType(v: r._value, type: "string") or types.isType(v: r._value, type: "bool"))
@@ -140,14 +140,14 @@ destOrg = "%s"
 from(bucket: sourceBucket)
 |> range(start: rangeStart, stop: rangeEnd)
 |> filter(fn: (r) => r["_measurement"] == "smart" )
-|> group(columns: ["device_wwn", "_field"])
+|> group(columns: ["scrutiny_uuid", "_field"])
 |> aggregateWindow(every: aggWindow, fn: last, createEmpty: false)
 |> to(bucket: destBucket, org: destOrg)
 
 from(bucket: sourceBucket)
 |> range(start: rangeStart, stop: rangeEnd)
 |> filter(fn: (r) => r["_measurement"] == "temp")
-|> group(columns: ["device_wwn"])
+|> group(columns: ["scrutiny_uuid"])
 |> toInt()
 |> aggregateWindow(fn: mean, every: aggWindow, createEmpty: false)
 |> set(key: "_measurement", value: "temp")
